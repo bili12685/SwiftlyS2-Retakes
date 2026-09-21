@@ -1,5 +1,7 @@
 build
 obj
 examples
+.inspect_temp
 /.vs
 /.gitignore
+CLAUDE.md
