@@ -79,9 +79,6 @@
   "command.forcesmokes.enabled": "[green]Retakes:[white] smokes forced (will spawn every round)",
   "command.forcesmokes.disabled": "[green]Retakes:[white] smokes no longer forced (back to normal)",
 
-  "command.voices.enabled": "[green]Retakes:[white] voice announcements enabled",
-  "command.voices.disabled": "[green]Retakes:[white] voice announcements disabled",
-
   "command.spawns.enabled": "[green]Retakes:[white] Spawn Menu enabled",
   "command.spawns.disabled": "[green]Retakes:[white] Spawn Menu disabled",
   "command.spawns.feature_disabled": "[green]Retakes:[white] Spawn Menu is disabled by the server",

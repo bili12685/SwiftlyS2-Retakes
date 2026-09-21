@@ -41,6 +41,4 @@ public interface IRetakesStateService
   void ForceSmokes();
   void ClearForcedSmokes();
   void SetShowingSpawnsForBombsite(Bombsite? bombsite);
-  bool ToggleVoices(ulong steamId);
-  bool VoicesEnabled(ulong steamId);
 }

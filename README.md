@@ -513,7 +513,6 @@ Message format can be edited in `resources/translations/en.jsonc` (`damage.repor
 | `!retake` | Open the main Retakes menu |
 | `!spawns` | Toggle the CT spawn selection menu |
 | `!awp` | Toggle AWP preference |
-| `!voices` | Toggle voice announcements |
 
 ### Quick Weapon Select (`!gun`)
 

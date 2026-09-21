@@ -79,9 +79,6 @@
   "command.forcesmokes.enabled": "[green]Retakes:[white] dūmai priversti (spawninsis kiekvieną raundą)",
   "command.forcesmokes.disabled": "[green]Retakes:[white] dūmai nebepriversti (grįžtam prie normalių raundų)",
 
-  "command.voices.enabled": "[green]Retakes:[white] balso pranešimai įjungti",
-  "command.voices.disabled": "[green]Retakes:[white] balso pranešimai išjungti",
-
   "command.spawns.enabled": "[green]Retakes:[white] Spawnų meniu įjungtas",
   "command.spawns.disabled": "[green]Retakes:[white] Spawnų meniu išjungtas",
   "command.spawns.feature_disabled": "[green]Retakes:[white] Spawnų meniu yra išjungtas serverio",

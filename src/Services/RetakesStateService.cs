@@ -8,7 +8,6 @@ namespace SwiftlyS2_Retakes.Services;
 
 public sealed class RetakesStateService : IRetakesStateService
 {
-  private readonly HashSet<ulong> _voicesDisabled = new();
   private readonly HashSet<ulong> _roundParticipants = new();
   private readonly HashSet<ulong> _pendingJoiners = new();
   private readonly Dictionary<ulong, Team> _lockedTeamByParticipant = new();
@@ -129,7 +128,6 @@ public sealed class RetakesStateService : IRetakesStateService
   {
     _roundParticipants.Remove(steamId);
     _pendingJoiners.Remove(steamId);
-    _voicesDisabled.Remove(steamId);
     _lockedTeamByParticipant.Remove(steamId);
   }
 
@@ -198,22 +196,5 @@ public sealed class RetakesStateService : IRetakesStateService
   public void SetShowingSpawnsForBombsite(Bombsite? bombsite)
   {
     ShowingSpawnsForBombsite = bombsite;
-  }
-
-  public bool ToggleVoices(ulong steamId)
-  {
-    if (_voicesDisabled.Contains(steamId))
-    {
-      _voicesDisabled.Remove(steamId);
-      return true;
-    }
-
-    _voicesDisabled.Add(steamId);
-    return false;
-  }
-
-  public bool VoicesEnabled(ulong steamId)
-  {
-    return !_voicesDisabled.Contains(steamId);
   }
 }

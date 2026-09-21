@@ -87,7 +87,6 @@ public sealed class CommandHandlers
     _commandGuids.Add(core.Command.RegisterCommand("listcfg", ListCfg, registerRaw: true, permission: RetakesPermissions.Root));
 
     _commandGuids.Add(core.Command.RegisterCommand("scramble", Scramble, registerRaw: true, permission: RetakesPermissions.Admin));
-    _commandGuids.Add(core.Command.RegisterCommand("voices", Voices, registerRaw: true));
 
     _commandGuids.Add(core.Command.RegisterCommand("guns", Guns, registerRaw: true));
     _commandGuids.Add(core.Command.RegisterCommand("gun", SelectGun, registerRaw: true));
@@ -770,18 +769,6 @@ public sealed class CommandHandlers
   {
     _state.ScrambleNextRound = true;
     context.Reply(Tr(context, "command.scramble.next_round"));
-  }
-
-  private void Voices(ICommandContext context)
-  {
-    if (!context.IsSentByPlayer || context.Sender is null)
-    {
-      context.Reply(Tr(context, "error.must_be_player"));
-      return;
-    }
-
-    var enabled = _state.ToggleVoices(context.Sender.SteamID);
-    context.Reply(enabled ? Tr(context, "command.voices.enabled") : Tr(context, "command.voices.disabled"));
   }
 
   private void Guns(ICommandContext context)
