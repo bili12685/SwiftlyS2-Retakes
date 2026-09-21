@@ -32,6 +32,7 @@ public sealed class PlayerEventHandlers
   private Guid _clientCommandHook;
   private Guid _playerHurtHook;
   private Guid _bombDefusedHook;
+  private Guid _playerConnectHook;
 
   public PlayerEventHandlers(IPawnLifecycleService pawnLifecycle, IClutchAnnounceService clutch, IPlayerPreferencesService prefs, IRetakesStateService state, IRetakesConfigService config, IQueueService queue, IDamageReportService damageReport, ISoloBotService soloBot, IAllocationService allocation, ISpawnManager spawnManager)
   {
@@ -57,6 +58,7 @@ public sealed class PlayerEventHandlers
     _playerDisconnectHook = core.GameEvent.HookPost<EventPlayerDisconnect>(OnPlayerDisconnect);
     _playerHurtHook = core.GameEvent.HookPost<EventPlayerHurt>(OnPlayerHurt);
     _bombDefusedHook = core.GameEvent.HookPost<EventBombDefused>(OnBombDefused);
+    _playerConnectHook = core.GameEvent.HookPost<EventPlayerConnectFull>(OnPlayerConnectFull);
     _clientCommandHook = core.Command.HookClientCommand(OnClientCommand);
   }
 
@@ -69,6 +71,7 @@ public sealed class PlayerEventHandlers
     if (_playerDisconnectHook != Guid.Empty) core.GameEvent.Unhook(_playerDisconnectHook);
     if (_playerHurtHook != Guid.Empty) core.GameEvent.Unhook(_playerHurtHook);
     if (_bombDefusedHook != Guid.Empty) core.GameEvent.Unhook(_bombDefusedHook);
+    if (_playerConnectHook != Guid.Empty) core.GameEvent.Unhook(_playerConnectHook);
     if (_clientCommandHook != Guid.Empty) core.Command.UnhookClientCommand(_clientCommandHook);
     _playerSpawnPreHook = Guid.Empty;
     _playerSpawnPostHook = Guid.Empty;
@@ -77,8 +80,18 @@ public sealed class PlayerEventHandlers
     _playerDisconnectHook = Guid.Empty;
     _playerHurtHook = Guid.Empty;
     _bombDefusedHook = Guid.Empty;
+    _playerConnectHook = Guid.Empty;
     _clientCommandHook = Guid.Empty;
     _core = null;
+  }
+
+  private HookResult OnPlayerConnectFull(EventPlayerConnectFull @event)
+  {
+    var player = @event.UserIdPlayer;
+    if (player is null || !player.IsValid) return HookResult.Continue;
+
+    _queue.OnPlayerConnected(player);
+    return HookResult.Continue;
   }
 
   private HookResult OnClientCommand(int playerId, string commandLine)

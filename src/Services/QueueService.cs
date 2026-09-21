@@ -175,6 +175,99 @@ public sealed class QueueService : IQueueService
     return HookResult.Continue;
   }
 
+  // Keeps the team-select menu from auto-closing once a connecting player has
+  // been parked in spectator, so they can pick a side at their own pace.
+  private const float TeamMenuHoldSeconds = 3600f;
+
+  public void OnPlayerConnected(IPlayer player)
+  {
+    if (!PlayerUtil.IsHuman(player))
+    {
+      return;
+    }
+
+    var cfg = _config.Config.Queue;
+
+    // AutoJoinGame wins: no menu, straight into the game or the queue.
+    if (cfg.AutoJoinGame)
+    {
+      AddConnectedPlayerToGame(player, cfg);
+      return;
+    }
+
+    if (cfg.AutoJoinSpectators)
+    {
+      MoveToSpectatorWithTeamMenu(player);
+    }
+  }
+
+  private void MoveToSpectatorWithTeamMenu(IPlayer player)
+  {
+    var controller = player.Controller;
+    if (controller is null)
+    {
+      return;
+    }
+
+    _logger.LogPluginDebug("QueueService: [{Name}] Auto-joining spectator on connect", controller.PlayerName);
+
+    if ((Team)controller.TeamNum != Team.Spectator)
+    {
+      player.ChangeTeam(Team.Spectator);
+    }
+
+    // ForceTeamTime is a native-backed ref, so keep the write guarded.
+    try
+    {
+      controller.ForceTeamTime.Value = _core.Engine.GlobalVars.CurrentTime + TeamMenuHoldSeconds;
+      controller.ForceTeamTimeUpdated();
+    }
+    catch (Exception ex)
+    {
+      _logger.LogPluginDebug("QueueService: [{Name}] Could not extend ForceTeamTime: {Error}", controller.PlayerName, ex.Message);
+    }
+  }
+
+  private void AddConnectedPlayerToGame(IPlayer player, Configuration.QueueConfig cfg)
+  {
+    var steamId = player.SteamID;
+    if (_activePlayers.Contains(steamId) || _queuePlayers.Contains(steamId))
+    {
+      return;
+    }
+
+    var controller = player.Controller;
+    if (controller is null)
+    {
+      return;
+    }
+
+    if (_activePlayers.Count < cfg.MaxPlayers)
+    {
+      _logger.LogPluginInformation("QueueService: [{Name}] Auto-joined the game on connect", controller.PlayerName);
+      _activePlayers.Add(steamId);
+      _queuePlayers.Remove(steamId);
+
+      _state.BeginTeamChangeBypass();
+      try { player.SwitchTeam(Team.CT); }
+      finally { _state.EndTeamChangeBypass(); }
+      return;
+    }
+
+    _logger.LogPluginInformation("QueueService: [{Name}] Auto-joined the queue on connect (server full)", controller.PlayerName);
+    _queuePlayers.Add(steamId);
+
+    if (controller.PawnIsAlive && player.Pawn is not null)
+    {
+      player.Pawn.CommitSuicide(false, true);
+    }
+
+    player.ChangeTeam(Team.Spectator);
+
+    var loc = _core.Translation.GetPlayerLocalizer(player);
+    _messages.Chat(player, loc["queue.added"]);
+  }
+
   public void Update()
   {
     RemoveDisconnectedPlayers();

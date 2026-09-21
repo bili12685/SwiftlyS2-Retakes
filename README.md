@@ -380,6 +380,10 @@ Grenades not listed here are uncapped.
 | `Queue.QueuePriorityFlags` | `""` | Permission flag(s) that grant queue priority |
 | `Queue.QueueImmunityFlags` | `""` | Permission flag(s) that exempt players from being queued |
 | `Queue.ShouldRemoveSpectators` | `true` | Move spectators to queue when a slot opens |
+| `Queue.AutoJoinSpectators` | `false` | Park players in spectator when they connect, keeping the team-select menu open so they pick a side themselves |
+| `Queue.AutoJoinGame` | `false` | Drop players straight into the game on connect (or into the queue when full), without showing the team-select menu |
+
+> `Queue.AutoJoinGame` takes priority over `Queue.AutoJoinSpectators`. With both `false` (the default) connecting players keep the vanilla behaviour — the engine assigns them and the queue system adjusts on their first team change.
 
 ---
 
