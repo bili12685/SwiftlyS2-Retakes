@@ -85,6 +85,7 @@
 
   "command.awp.enabled": "[green]Retakes:[white] AWP preference enabled",
   "command.awp.disabled": "[green]Retakes:[white] AWP preference disabled",
+  "command.awp.no_access": "[green]Retakes:[white] AWP is restricted on this server, so you cannot enable it.",
 
   "command.ssg08.enabled": "[green]Retakes:[white] SSG08 preference enabled",
   "command.ssg08.disabled": "[green]Retakes:[white] SSG08 preference disabled",

@@ -126,7 +126,7 @@ public partial class SwiftlyS2_Retakes : BasePlugin
           _pawnLifecycle, _clutch, _prefs, _state, _config, _queue, _damageReport, _soloBot, _allocation, _spawnManager);
 
         _commandHandlers = new CommandHandlers(
-                    _mapConfig, _spawnManager, _pawnLifecycle, _spawnViz, _state, _prefs, _config, _weaponAliasConfig, _smokeScenario, _allocation);
+                    _mapConfig, _spawnManager, _pawnLifecycle, _spawnViz, _state, _prefs, _config, _weaponAliasConfig, _smokeScenario, _allocation, _messages);
 
         _mapEventHandlers = new MapEventHandlers(mapName =>
         {

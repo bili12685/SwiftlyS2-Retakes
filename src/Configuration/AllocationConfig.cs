@@ -16,7 +16,23 @@ public sealed class AllocationConfig
 
   public bool AwpEnabled { get; set; } = true;
   public int AwpPerTeam { get; set; } = 1;
+
+  /// <summary>
+  /// When true, every player is authorised to receive an AWP. When false, only
+  /// players holding <see cref="AwpAccessFlag"/> are.
+  /// In both cases the player's own <c>!awp</c> preference must still be on —
+  /// this switch controls who is *allowed*, not who *wants* one.
+  /// </summary>
   public bool AwpAllowEveryone { get; set; } = false;
+
+  /// <summary>
+  /// Permission required to be eligible for an AWP when
+  /// <see cref="AwpAllowEveryone"/> is false. Expects a permission string as
+  /// defined in the server's permissions.json (e.g. "retakes.vip"), not a group
+  /// name. An empty string disables the gate and authorises everyone.
+  /// </summary>
+  public string AwpAccessFlag { get; set; } = "retakes.vip";
+
   public int AwpLowPlayersThreshold { get; set; } = 4;
   public int AwpLowPlayersChance { get; set; } = 50;
   public int AwpLowPlayersVipChance { get; set; } = 60;

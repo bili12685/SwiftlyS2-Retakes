@@ -32,6 +32,7 @@ public sealed class AllocationService : IAllocationService
   private readonly IConVar<bool> _awpEnabled;
   private readonly IConVar<int> _awpPerTeam;
   private readonly IConVar<bool> _awpAllowEveryone;
+  private readonly IConVar<string> _awpAccessFlag;
   private readonly IConVar<int> _awpLowPlayersThreshold;
   private readonly IConVar<int> _awpLowPlayersChance;
   private readonly IConVar<int> _awpLowPlayersVipChance;
@@ -73,7 +74,8 @@ public sealed class AllocationService : IAllocationService
 
     _awpEnabled = core.ConVar.CreateOrFind("retakes_allocation_awp_enabled", "Enable AWP preference allocation on FullBuy", true);
     _awpPerTeam = core.ConVar.CreateOrFind("retakes_allocation_awp_per_team", "Number of AWPs per team on FullBuy", 1, 0, 5);
-    _awpAllowEveryone = core.ConVar.CreateOrFind("retakes_allocation_awp_allow_everyone", "Ignore player preference and allow everyone to receive AWP", false);
+    _awpAllowEveryone = core.ConVar.CreateOrFind("retakes_allocation_awp_allow_everyone", "Authorise every player for AWP (each player still needs their own !awp preference on)", false);
+    _awpAccessFlag = core.ConVar.CreateOrFind("retakes_allocation_awp_access_flag", "Permission required for AWP when awp_allow_everyone is 0 (empty = no gate)", "retakes.vip");
     _awpLowPlayersThreshold = core.ConVar.CreateOrFind("retakes_allocation_awp_low_players_threshold", "Number of players on a team to consider 'low population'", 4, 0, 64);
     _awpLowPlayersChance = core.ConVar.CreateOrFind("retakes_allocation_awp_low_players_chance", "Chance (0-100) to allocate AWP when player count is low", 50, 0, 100);
     _awpLowPlayersVipChance = core.ConVar.CreateOrFind("retakes_allocation_awp_low_players_vip_chance", "Chance (0-100) to allocate AWP when player count is low and an eligible VIP is present", 60, 0, 100);
@@ -475,6 +477,24 @@ public sealed class AllocationService : IAllocationService
     return roundCfg.All.Count > 0 ? roundCfg.All : _config.Config.Weapons.Pistols;
   }
 
+  public bool IsAuthorisedForAwp(ulong steamId)
+  {
+    if (_awpAllowEveryone.Value) return true;
+
+    var flag = (_awpAccessFlag.Value ?? string.Empty).Trim();
+    if (string.IsNullOrWhiteSpace(flag)) return true;
+
+    try
+    {
+      return _core.Permission.PlayerHasPermission(steamId, flag);
+    }
+    catch
+    {
+      // A permission backend failure must not silently hand out AWPs.
+      return false;
+    }
+  }
+
   private IEnumerable<ulong> PickAwpReceivers(List<IPlayer> players)
   {
     var perTeam = Math.Clamp(_awpPerTeam.Value, 0, 10);
@@ -515,9 +535,17 @@ public sealed class AllocationService : IAllocationService
       }
     }
 
-    var candidates = _awpAllowEveryone.Value
-      ? players
-      : players.Where(p => _prefs.WantsAwp(p.SteamID)).ToList();
+    // Two independent conditions, both required:
+    //   1. the player wants an AWP (their own !awp preference), and
+    //   2. the player is authorised to have one.
+    // AwpAllowEveryone widens *who is allowed* (condition 2); it must never
+    // override what an individual player asked for. Previously it replaced the
+    // preference filter outright, which made !awp impossible to turn off on any
+    // server that had it enabled.
+    var candidates = players
+      .Where(p => _prefs.WantsAwp(p.SteamID))
+      .Where(p => IsAuthorisedForAwp(p.SteamID))
+      .ToList();
 
     if (candidates.Count == 0) return Array.Empty<ulong>();
 
@@ -568,6 +596,12 @@ public sealed class AllocationService : IAllocationService
     var basePool = players.Where(p => !excluded.Contains(p.SteamID)).ToList();
     if (basePool.Count == 0) return Array.Empty<ulong>();
 
+    // KNOWN ISSUE (deliberately left as-is for now): Ssg08AllowEveryone replaces
+    // the preference filter instead of widening it, so setting it to 1 makes
+    // !scout / !ssg08 impossible to turn off — the same defect that was fixed for
+    // AWP above. There is also no access-flag gate here. Fix both the same way as
+    // AWP (preference always required + IsAuthorisedForSsg08) if this ever gets
+    // enabled in practice; Ssg08PerTeam defaults to 0, which is why it is latent.
     var candidates = _ssg08AllowEveryone.Value
       ? basePool
       : basePool.Where(p => _prefs.WantsSsg08(p.SteamID)).ToList();
@@ -594,6 +628,8 @@ public sealed class AllocationService : IAllocationService
 
     if (players.Count == 0) return Array.Empty<ulong>();
 
+    // KNOWN ISSUE: see the note on PickSsg08Receivers above — same latent defect,
+    // same reason for leaving it (Ssg08HalfPerTeam defaults to 0).
     var candidates = _ssg08HalfAllowEveryone.Value
       ? players
       : players.Where(p => _prefs.WantsSsg08HalfBuy(p.SteamID)).ToList();

@@ -32,6 +32,7 @@ public sealed class CommandHandlers
   private readonly ISmokeScenarioService _smokeScenario;
   private readonly IAllocationService _allocation;
 
+  private readonly IMessageService _messages;
   private readonly List<Guid> _commandGuids = new();
   private readonly List<Guid> _aliasCommandGuids = new();
 
@@ -45,7 +46,8 @@ public sealed class CommandHandlers
     IRetakesConfigService config,
     IWeaponAliasConfigService weaponAliasConfig,
     ISmokeScenarioService smokeScenario,
-    IAllocationService allocation
+    IAllocationService allocation,
+    IMessageService messages
   )
   {
     _mapConfig = mapConfig;
@@ -58,6 +60,7 @@ public sealed class CommandHandlers
     _weaponAliasConfig = weaponAliasConfig;
     _smokeScenario = smokeScenario;
     _allocation = allocation;
+    _messages = messages;
   }
 
   public void Register(ISwiftlyCore core)
@@ -876,11 +879,25 @@ public sealed class CommandHandlers
     }
 
     var awpEnabled = _prefs.WantsAwp(player.SteamID);
-    var awpToggleText = awpEnabled ? "Play with AWP: ON" : "Play with AWP: OFF";
+    var awpAuthorised = _allocation.IsAuthorisedForAwp(player.SteamID);
+    var awpToggleText = !awpAuthorised
+      ? "Play with AWP: no access"
+      : awpEnabled ? "Play with AWP: ON" : "Play with AWP: OFF";
     var awpToggle = new ButtonMenuOption(awpToggleText);
     awpToggle.Click += async (_, args) =>
     {
-      _prefs.ToggleAwp(args.Player.SteamID);
+      // Same rule as the !awp command: switching off is always allowed, switching
+      // on is refused with an explanation when the access gate excludes the player.
+      if (!_prefs.WantsAwp(args.Player.SteamID) && !_allocation.IsAuthorisedForAwp(args.Player.SteamID))
+      {
+        var loc = core.Translation.GetPlayerLocalizer(args.Player);
+        _messages.Chat(args.Player, loc["command.awp.no_access"]);
+      }
+      else
+      {
+        _prefs.ToggleAwp(args.Player.SteamID);
+      }
+
       OpenRetakeMenu(core, args.Player);
       await ValueTask.CompletedTask;
     };
@@ -1438,6 +1455,15 @@ public sealed class CommandHandlers
 
     if (weaponName.Equals("weapon_awp", StringComparison.OrdinalIgnoreCase))
     {
+      // Turning AWP off is always allowed. Turning it on when the server's access
+      // gate excludes this player would otherwise be confirmed and then silently
+      // ignored at allocation time, so say what is actually going on instead.
+      if (!_prefs.WantsAwp(player.SteamID) && !_allocation.IsAuthorisedForAwp(player.SteamID))
+      {
+        context.Reply(Tr(context, "command.awp.no_access"));
+        return true;
+      }
+
       var enabled = _prefs.ToggleAwp(player.SteamID);
       context.Reply(enabled ? Tr(context, "command.awp.enabled") : Tr(context, "command.awp.disabled"));
       return true;

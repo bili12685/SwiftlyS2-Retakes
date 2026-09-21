@@ -197,16 +197,50 @@ Used when a player has no saved preference yet. Player selections always overrid
 
 Only on full-buy rounds. Players must toggle `!awp` to be eligible.
 
+Allocation requires **two** independent conditions. A player receives an AWP only if:
+
+1. they **want** one (their own `!awp` preference), **and**
+2. they are **authorised** to have one (see the access gate below).
+
+`Allocation.AwpAllowEveryone` controls condition 2 only — it never overrides what an individual player asked for.
+
 | Field | Default | Description |
 | :--- | :--- | :--- |
 | `Allocation.AwpEnabled` | `true` | Enable AWP allocation |
 | `Allocation.AwpPerTeam` | `1` | Maximum AWPs given per team |
-| `Allocation.AwpAllowEveryone` | `false` | Ignore player preference — everyone is eligible |
+| `Allocation.AwpAllowEveryone` | `false` | `true` = every player is authorised. `false` = only players holding `Allocation.AwpAccessFlag` are |
+| `Allocation.AwpAccessFlag` | `"retakes.vip"` | Permission required when `AwpAllowEveryone` is `false`. Must be a **permission** string as defined in the server's `permissions.json`, not a group name. Empty string disables the gate |
 | `Allocation.AwpLowPlayersThreshold` | `4` | Team size at or below which low-population mode activates |
 | `Allocation.AwpLowPlayersChance` | `50` | % chance of AWP spawning in low-population mode |
 | `Allocation.AwpLowPlayersVipChance` | `60` | % chance when a VIP-priority player is in the low-population team |
 | `Allocation.AwpPriorityFlag` | `""` | Permission flag that grants AWP priority (empty = disabled) |
 | `Allocation.AwpPriorityPct` | `0` | % chance each AWP slot picks a priority player first |
+
+> **`AwpAccessFlag` defaults to `retakes.vip`, which nobody holds until you grant it.**
+> If you upgrade with the defaults and no one has that permission, **no player will
+> receive an AWP**. Either grant it, or set `AwpAccessFlag` to `""` to remove the gate.
+
+<details>
+<summary><b>Granting the access flag (permissions.json)</b></summary>
+
+The value is a **permission**, not a group name. Grant it to a group and add players
+to that group in SwiftlyS2's `permissions.json`:
+
+```jsonc
+{
+  "Permissions": {
+    "Players": { "76561198": ["vip"] },        // steamId prefix → groups
+    "PermissionGroups": {
+      "vip": ["retakes.vip"]                   // group → permissions
+    }
+  }
+}
+```
+
+To use a different permission (or an existing group's permission), set
+`Allocation.AwpAccessFlag` to that name — for example `"retakes.awp"`.
+
+</details>
 
 ### Scout (SSG08) Allocation
 

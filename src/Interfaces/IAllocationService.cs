@@ -13,6 +13,15 @@ public interface IAllocationService
   RoundType? CurrentRoundType { get; }
 
   /// <summary>
+  /// Whether the player is authorised to receive an AWP at all, independent of
+  /// their own <c>!awp</c> preference. True when
+  /// <c>Allocation.AwpAllowEveryone</c> is on, or when
+  /// <c>Allocation.AwpAccessFlag</c> is empty, or when the player holds that
+  /// permission.
+  /// </summary>
+  bool IsAuthorisedForAwp(ulong steamId);
+
+  /// <summary>
   /// Whether instant weapon swap on preference change is enabled.
   /// </summary>
   bool InstantSwapEnabled { get; }

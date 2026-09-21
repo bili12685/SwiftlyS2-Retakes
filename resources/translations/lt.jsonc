@@ -85,6 +85,7 @@
 
   "command.awp.enabled": "[green]Retakes:[white] AWP preferencija įjungta",
   "command.awp.disabled": "[green]Retakes:[white] AWP preferencija išjungta",
+  "command.awp.no_access": "[green]Retakes:[white] AWP šiame servere yra apribotas, todėl negalite jo įjungti.",
 
   "command.ssg08.enabled": "[green]Retakes:[white] SSG08 preferencija įjungta",
   "command.ssg08.disabled": "[green]Retakes:[white] SSG08 preferencija išjungta",
