@@ -115,6 +115,14 @@ public sealed class RetakesCfgGenerator
       }
     }
 
+    // Trim the blank lines GenerateCfgFile inserts between the section and the
+    // echo line. Without this they are captured again on the next apply and
+    // re-emitted, so the file gains one blank line on every regeneration.
+    while (end > start && string.IsNullOrWhiteSpace(lines[end - 1]))
+    {
+      end--;
+    }
+
     var section = lines[start..end];
     // If the section is effectively empty, return null to use the default
     if (section.All(string.IsNullOrWhiteSpace)) return null;
