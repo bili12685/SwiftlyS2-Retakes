@@ -32,7 +32,7 @@ public sealed class RetakesCfgGenerator
     {
       var freezeTime = Math.Clamp(config.Server.FreezeTimeSeconds, 0, 60);
 
-      var cfgDir = Path.Combine(_core.CSGODirectory, "cfg", CfgFolderName);
+      var cfgDir = Path.Combine(_core.GameFilesDirectory, "cfg", CfgFolderName);
       var cfgPath = Path.Combine(cfgDir, CfgFileName);
 
       _logger.LogPluginDebug("Retakes: applying freeze time. FreezeTimeSeconds={Freeze} CfgPath={CfgPath}", freezeTime, cfgPath);
