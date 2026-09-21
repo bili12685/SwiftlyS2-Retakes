@@ -417,13 +417,47 @@ Grenades not listed here are uncapped.
 | `Queue.MaxPlayers` | `9` | Maximum active players (others go to spectator queue) |
 | `Queue.PreventTeamChangesMidRound` | `true` | Lock players to their team during a live round |
 | `Queue.ForceEvenTeamsWhenPlayerCountIsMultipleOf10` | `true` | Force even teams when player count is a multiple of 10 |
-| `Queue.QueuePriorityFlags` | `""` | Permission flag(s) that grant queue priority |
-| `Queue.QueueImmunityFlags` | `""` | Permission flag(s) that exempt players from being queued |
+| `Queue.QueuePriorityFlags` | `"permission:vip"` | Permission(s) that grant queue priority. Comma-separate for several |
+| `Queue.QueueImmunityFlags` | `""` | Permission(s) that exempt players from being bumped. Empty reuses `QueuePriorityFlags` |
 | `Queue.ShouldRemoveSpectators` | `true` | Move spectators to queue when a slot opens |
 | `Queue.AutoJoinSpectators` | `false` | Park players in spectator when they connect, keeping the team-select menu open so they pick a side themselves |
 | `Queue.AutoJoinGame` | `false` | Drop players straight into the game on connect (or into the queue when full), without showing the team-select menu |
 
 > `Queue.AutoJoinGame` takes priority over `Queue.AutoJoinSpectators`. With both `false` (the default) connecting players keep the vanilla behaviour — the engine assigns them and the queue system adjusts on their first team change.
+
+<details>
+<summary><b><code>QueuePriorityFlags</code> ships a default nobody holds — read this before relying on VIP priority</b></summary>
+
+These values are **permission names**, matched literally against
+`permissions.json`. They are **not** group names, and `permission:` is **not** a
+lookup syntax — the framework just compares the whole string, so
+`permission:vip` looks for a permission literally spelled `permission:vip`.
+
+Nothing grants that out of the box. SwiftlyS2's shipped example permissions give
+the `vip` group the placeholder `test.3`, not `permission:vip`, so queue priority,
+VIP bumping and the AWP access gate (which falls back to this value) all **silently
+do nothing** until you define it. There is no warning — the feature just looks
+broken.
+
+Grant it to whichever group should have VIP:
+
+```jsonc
+// configs/permissions.json
+{
+  "Permissions": {
+    "Players": { "76561198": ["vip"] },          // steamId prefix → groups
+    "PermissionGroups": {
+      "vip": ["permission:vip"]                  // group → the permission above
+    }
+  }
+}
+```
+
+Or point the config at a permission you already grant — the two just have to
+match. Wildcard entries use the framework's `xxx.*` form, so a single broad
+permission can cover these checks too.
+
+</details>
 
 ---
 
