@@ -209,22 +209,25 @@ Allocation requires **two** independent conditions. A player receives an AWP onl
 | `Allocation.AwpEnabled` | `true` | Enable AWP allocation |
 | `Allocation.AwpPerTeam` | `1` | Maximum AWPs given per team |
 | `Allocation.AwpAllowEveryone` | `false` | `true` = every player is authorised. `false` = only players holding `Allocation.AwpAccessFlag` are |
-| `Allocation.AwpAccessFlag` | `"retakes.vip"` | Permission required when `AwpAllowEveryone` is `false`. Must be a **permission** string as defined in the server's `permissions.json`, not a group name. Empty string disables the gate |
+| `Allocation.AwpAccessFlag` | `""` | Permission(s) required when `AwpAllowEveryone` is `false`. A **permission** string from `permissions.json`, not a group name — comma-separate for several. Empty falls back as described below |
 | `Allocation.AwpLowPlayersThreshold` | `4` | Team size at or below which low-population mode activates |
 | `Allocation.AwpLowPlayersChance` | `50` | % chance of AWP spawning in low-population mode |
 | `Allocation.AwpLowPlayersVipChance` | `60` | % chance when a VIP-priority player is in the low-population team |
 | `Allocation.AwpPriorityFlag` | `""` | Permission flag that grants AWP priority (empty = disabled) |
 | `Allocation.AwpPriorityPct` | `0` | % chance each AWP slot picks a priority player first |
 
-> **`AwpAccessFlag` defaults to `retakes.vip`, which nobody holds until you grant it.**
-> If you upgrade with the defaults and no one has that permission, **no player will
-> receive an AWP**. Either grant it, or set `AwpAccessFlag` to `""` to remove the gate.
-
 <details>
-<summary><b>Granting the access flag (permissions.json)</b></summary>
+<summary><b>How the access gate resolves</b></summary>
 
-The value is a **permission**, not a group name. Grant it to a group and add players
-to that group in SwiftlyS2's `permissions.json`:
+When `AwpAllowEveryone` is `false`, the required permission is resolved in order:
+
+1. `Allocation.AwpAccessFlag`, if not empty.
+2. Otherwise `Queue.QueuePriorityFlags` — so a server that already configured VIP
+   for the queue does not need to define a second permission.
+3. Otherwise no gate — every player is authorised.
+
+The value must be a **permission**, not a group name, matching
+`permissions.json`. Grant it to a group and add players to that group:
 
 ```jsonc
 {
@@ -237,8 +240,11 @@ to that group in SwiftlyS2's `permissions.json`:
 }
 ```
 
-To use a different permission (or an existing group's permission), set
-`Allocation.AwpAccessFlag` to that name — for example `"retakes.awp"`.
+> **If the resolved permission is not granted to anyone, nobody receives an AWP.**
+> With the defaults (`AwpAccessFlag: ""`) that means the gate follows whatever
+> `Queue.QueuePriorityFlags` names — so if that value is wrong or unheld, turning
+> `AwpAllowEveryone` off will block AWPs entirely. Verify the flag against your
+> live `configs/permissions.json` before flipping the switch.
 
 </details>
 

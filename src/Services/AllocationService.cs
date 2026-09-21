@@ -75,7 +75,7 @@ public sealed class AllocationService : IAllocationService
     _awpEnabled = core.ConVar.CreateOrFind("retakes_allocation_awp_enabled", "Enable AWP preference allocation on FullBuy", true);
     _awpPerTeam = core.ConVar.CreateOrFind("retakes_allocation_awp_per_team", "Number of AWPs per team on FullBuy", 1, 0, 5);
     _awpAllowEveryone = core.ConVar.CreateOrFind("retakes_allocation_awp_allow_everyone", "Authorise every player for AWP (each player still needs their own !awp preference on)", false);
-    _awpAccessFlag = core.ConVar.CreateOrFind("retakes_allocation_awp_access_flag", "Permission required for AWP when awp_allow_everyone is 0 (empty = no gate)", "retakes.vip");
+    _awpAccessFlag = core.ConVar.CreateOrFind("retakes_allocation_awp_access_flag", "Permission required for AWP when awp_allow_everyone is 0 (empty = fall back to the queue VIP flag, then to no gate)", "");
     _awpLowPlayersThreshold = core.ConVar.CreateOrFind("retakes_allocation_awp_low_players_threshold", "Number of players on a team to consider 'low population'", 4, 0, 64);
     _awpLowPlayersChance = core.ConVar.CreateOrFind("retakes_allocation_awp_low_players_chance", "Chance (0-100) to allocate AWP when player count is low", 50, 0, 100);
     _awpLowPlayersVipChance = core.ConVar.CreateOrFind("retakes_allocation_awp_low_players_vip_chance", "Chance (0-100) to allocate AWP when player count is low and an eligible VIP is present", 60, 0, 100);
@@ -481,18 +481,42 @@ public sealed class AllocationService : IAllocationService
   {
     if (_awpAllowEveryone.Value) return true;
 
-    var flag = (_awpAccessFlag.Value ?? string.Empty).Trim();
-    if (string.IsNullOrWhiteSpace(flag)) return true;
+    var flags = ResolveAwpAccessFlags();
+    if (flags.Length == 0) return true;
 
-    try
+    foreach (var flag in flags)
     {
-      return _core.Permission.PlayerHasPermission(steamId, flag);
+      try
+      {
+        if (_core.Permission.PlayerHasPermission(steamId, flag)) return true;
+      }
+      catch
+      {
+        // A permission backend failure must not silently hand out AWPs, so treat
+        // a failed lookup as "not authorised" rather than aborting the loop.
+      }
     }
-    catch
+
+    return false;
+  }
+
+  /// <summary>
+  /// Permissions that grant AWP access. An explicitly configured flag wins;
+  /// otherwise the queue's VIP flag is reused so a server that already set up VIP
+  /// for the queue does not have to define a second permission for AWP. An empty
+  /// result means no gate — everyone is authorised.
+  /// </summary>
+  private string[] ResolveAwpAccessFlags()
+  {
+    var configured = (_awpAccessFlag.Value ?? string.Empty).Trim();
+    if (configured.Length == 0)
     {
-      // A permission backend failure must not silently hand out AWPs.
-      return false;
+      configured = (_config.Config.Queue.QueuePriorityFlags ?? string.Empty).Trim();
     }
+
+    if (configured.Length == 0) return Array.Empty<string>();
+
+    return configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
   }
 
   private IEnumerable<ulong> PickAwpReceivers(List<IPlayer> players)

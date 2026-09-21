@@ -27,11 +27,15 @@ public sealed class AllocationConfig
 
   /// <summary>
   /// Permission required to be eligible for an AWP when
-  /// <see cref="AwpAllowEveryone"/> is false. Expects a permission string as
-  /// defined in the server's permissions.json (e.g. "retakes.vip"), not a group
-  /// name. An empty string disables the gate and authorises everyone.
+  /// <see cref="AwpAllowEveryone"/> is false. Expects one or more permission
+  /// strings as defined in the server's permissions.json (e.g. "retakes.vip",
+  /// or a comma-separated list), not group names.
+  /// When empty (the default) it falls back to
+  /// <c>Queue.QueuePriorityFlags</c>, so servers that already configured VIP for
+  /// the queue do not need to define a second permission. If that is empty too,
+  /// the gate is disabled and everyone is authorised.
   /// </summary>
-  public string AwpAccessFlag { get; set; } = "retakes.vip";
+  public string AwpAccessFlag { get; set; } = "";
 
   public int AwpLowPlayersThreshold { get; set; } = 4;
   public int AwpLowPlayersChance { get; set; } = 50;
