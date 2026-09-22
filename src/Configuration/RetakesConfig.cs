@@ -20,16 +20,19 @@ public sealed class RetakesConfig
   public const int CurrentVersion = 2;
 
   /// <summary>
-  /// Oldest schema version this build will still run against. A config declaring less
-  /// than this is refused and the plugin unloads itself, rather than starting with a
-  /// shape it does not fully understand.
+  /// Oldest schema version this build will run against. A config declaring less than
+  /// this is refused and the plugin unloads itself, rather than starting with a shape
+  /// it does not fully understand.
   /// </summary>
   /// <remarks>
-  /// Left at 1 for now: version 1 is the pre-versioning shape and is upgraded in place
-  /// by the loader's migration, so nothing realistic trips this yet. Raise it when a
-  /// breaking change lands that migration cannot cover.
+  /// This matches <see cref="CurrentVersion"/>, so the effective rule is "the config
+  /// must be current". A config with no version field predates versioning: it is
+  /// upgraded in place and stamped with <see cref="CurrentVersion"/> before this check
+  /// runs, so it complies rather than being refused -- reading it as version 0 would
+  /// brick every existing server on upgrade. Only a config that explicitly declares an
+  /// older version is turned away.
   /// </remarks>
-  public const int MinimumSupportedVersion = 1;
+  public const int MinimumSupportedVersion = 2;
 
   public AllocationConfig Allocation { get; set; } = new();
   public GrenadeConfig Grenades { get; set; } = new();

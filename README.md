@@ -673,14 +673,18 @@ section. This build writes version `2`.
 | Field present but not a number | Repaired to the current version — a non-numeric value would fail the bind and reset the whole config. |
 | Field **below the minimum this build supports** | The plugin **refuses to start and unloads itself**, rather than running against a shape it does not fully understand. |
 
-The minimum lives in `RetakesConfig.MinimumSupportedVersion`. It is currently `1`
-(version 1 is the pre-versioning shape, and it is upgraded automatically), so no
-realistic config trips the refusal yet — the guard exists so a future breaking change
-can raise it instead of silently half-working.
+The minimum lives in `RetakesConfig.MinimumSupportedVersion` and equals the current
+version, so the effective rule is **the config must be current**. A config with no
+version field is upgraded and stamped *before* the check runs, so it complies rather
+than being refused — treating it as version 0 would brick every existing server on
+upgrade. Only a config that explicitly declares an older version is turned away.
 
-When the refusal does fire, the log names the file, the declared version, and the
-minimum. Back the file up, delete it to have a fresh one generated, then re-apply your
-settings.
+When the refusal fires, the log names the file, the declared version, and the minimum.
+Back the file up, delete it to have a fresh one generated, then re-apply your settings.
+
+> This does not cover the reverse case — a config *newer* than the plugin, which is what
+> happens if you downgrade the plugin while keeping the newer config. The check is
+> one-sided by design.
 
 ---
 
