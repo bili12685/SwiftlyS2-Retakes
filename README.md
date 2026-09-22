@@ -166,9 +166,27 @@ Configured under `Weapons`:
 | Field | Description |
 | :--- | :--- |
 | `Weapons.BuyMenuEnabled` | Show/hide the buy menu (disabling also zeroes player money) |
-| `Weapons.Pistols` | List of weapons selectable on pistol rounds and as secondaries |
+| `Weapons.Pistols.T` / `.Ct` / `.All` | Pistols selectable on pistol rounds and as secondaries, per team |
 | `Weapons.HalfBuy.T` / `.Ct` / `.All` | Allowed primaries for half-buy rounds per team |
 | `Weapons.FullBuy.T` / `.Ct` / `.All` | Allowed primaries for full-buy rounds per team |
+
+All four lists use the same `All` / `T` / `Ct` shape, resolved the same way: the
+team-specific list wins when it is non-empty, otherwise `All` applies to both teams.
+
+```jsonc
+"Weapons": {
+  "Pistols": {
+    "All": [],                                            // empty -> T/Ct decide
+    "T":  [ "weapon_glock", "weapon_tec9" ],
+    "Ct": [ "weapon_usp_silencer", "weapon_p250" ]
+  }
+}
+```
+
+> **Upgrading from a version where `Weapons.Pistols` was a flat array:** the array is
+> migrated automatically to `{"All": [...]}` on load, so an existing config keeps
+> working and no action is needed. One caveat — the migration rewrites `config.json`,
+> so comments in that file are not preserved.
 
 ### Default Loadouts
 

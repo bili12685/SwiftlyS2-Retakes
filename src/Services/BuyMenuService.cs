@@ -179,13 +179,18 @@ public sealed class BuyMenuService : IBuyMenuService
     var roundType = _allocation.CurrentRoundType ?? RoundType.FullBuy;
     var weapons = _config.Config.Weapons;
 
-    // Build allowed weapons list from unified config (pistols + round-specific primaries)
+    // Build allowed weapons list from unified config (pistols + round-specific primaries).
+    // There is no team context here -- mp_items_prohibited is applied server-wide -- so
+    // both teams' pistols have to be allowed. A per-team restriction is enforced at
+    // allocation time instead, which is how per-team primaries already work.
+    var pistols = weapons.GetAllPistols();
+
     _allowedWeapons = roundType switch
     {
-      RoundType.Pistol => new HashSet<string>(weapons.Pistols, StringComparer.OrdinalIgnoreCase),
-      RoundType.HalfBuy => BuildAllowedSet(weapons.Pistols, weapons.HalfBuy),
-      RoundType.FullBuy => BuildAllowedSet(weapons.Pistols, weapons.FullBuy),
-      _ => BuildAllowedSet(weapons.Pistols, weapons.FullBuy),
+      RoundType.Pistol => new HashSet<string>(pistols, StringComparer.OrdinalIgnoreCase),
+      RoundType.HalfBuy => BuildAllowedSet(pistols, weapons.HalfBuy),
+      RoundType.FullBuy => BuildAllowedSet(pistols, weapons.FullBuy),
+      _ => BuildAllowedSet(pistols, weapons.FullBuy),
     };
 
     if (_enabled.Value)

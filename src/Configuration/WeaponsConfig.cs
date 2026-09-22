@@ -9,7 +9,42 @@ public sealed class WeaponsConfig
 
   public DefaultWeaponsConfig Defaults { get; set; } = new();
 
-  public List<string> Pistols { get; set; } = new()
+  /// <summary>
+  /// Pistols available to each team, in the same <c>All</c>/<c>T</c>/<c>Ct</c> shape as
+  /// <see cref="HalfBuy"/> and <see cref="FullBuy"/>. Used as the secondary pool on
+  /// every round type and as the primary pool on pistol rounds.
+  /// </summary>
+  public RoundWeaponsConfig Pistols { get; set; } = new()
+  {
+    All = DefaultPistols(),
+  };
+
+  /// <summary>
+  /// Pistols for one team: the team-specific list when it is non-empty, otherwise the
+  /// shared <c>All</c> list, otherwise the built-in defaults (so emptying every bucket
+  /// falls back to something usable rather than leaving players with no sidearm).
+  /// </summary>
+  public List<string> GetPistols(bool isCt)
+  {
+    var teamList = isCt ? Pistols.Ct : Pistols.T;
+    if (teamList.Count > 0) return teamList;
+    if (Pistols.All.Count > 0) return Pistols.All;
+    return DefaultPistols();
+  }
+
+  /// <summary>
+  /// Every pistol configured for either team, for callers that have no team context
+  /// (e.g. the buy menu's global allowed-weapons set).
+  /// </summary>
+  public List<string> GetAllPistols()
+  {
+    var all = new List<string>(Pistols.All);
+    all.AddRange(Pistols.T);
+    all.AddRange(Pistols.Ct);
+    return all.Count > 0 ? all : DefaultPistols();
+  }
+
+  private static List<string> DefaultPistols() => new()
   {
     "weapon_glock",
     "weapon_usp_silencer",

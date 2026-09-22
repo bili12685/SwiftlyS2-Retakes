@@ -62,7 +62,16 @@ public sealed class RetakesConfigService : IRetakesConfigService
       var text = File.ReadAllText(_path);
       if (string.IsNullOrWhiteSpace(text)) return;
 
-      var node = JsonNode.Parse(text);
+      // Accept comments and trailing commas here, matching what the Swiftly/MEI
+      // provider already tolerates when it reads this file. Without this the migration
+      // and the sanitizers silently no-op on a hand-edited config, and for a legacy
+      // Weapons.Pistols array that means the bind fails and the loader's catch-all
+      // replaces the whole configuration with defaults.
+      var node = JsonNode.Parse(text, nodeOptions: null, documentOptions: new JsonDocumentOptions
+      {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+      });
       if (node is not JsonObject rootObj) return;
 
       var changed = ConfigSanitizer.SanitizeAll(rootObj, SectionName);

@@ -325,7 +325,7 @@ public sealed class AllocationService : IAllocationService
       }
       else
       {
-        var allowed = _config.Config.Weapons.Pistols;
+        var allowed = _config.Config.Weapons.GetPistols(team == Team.CT);
         secondary = allowed.Count == 0 ? null : allowed[_random.Next(allowed.Count)];
       }
 
@@ -382,7 +382,7 @@ public sealed class AllocationService : IAllocationService
   {
     if (roundType == RoundType.Pistol)
     {
-      var allowed = _config.Config.Weapons.Pistols;
+      var allowed = _config.Config.Weapons.GetPistols(team == Team.CT);
       var preferred = _prefs.GetPistolPrimary(steamId, team == Team.CT);
       var configuredDefault = GetConfiguredDefaultPrimary(team, roundType);
       return PreferOrDefaultOrRandom(preferred, configuredDefault, allowed);
@@ -405,8 +405,8 @@ public sealed class AllocationService : IAllocationService
 
   private string? SelectSecondary(Team team, RoundType roundType, ulong steamId)
   {
-    // All round types use the shared pistols list for secondary
-    var allowed = _config.Config.Weapons.Pistols;
+    // All round types use the pistol list for secondary
+    var allowed = _config.Config.Weapons.GetPistols(team == Team.CT);
 
     if (roundType == RoundType.HalfBuy)
     {
@@ -470,11 +470,11 @@ public sealed class AllocationService : IAllocationService
       _ => null,
     };
 
-    if (roundCfg is null) return _config.Config.Weapons.Pistols;
+    if (roundCfg is null) return _config.Config.Weapons.GetPistols(team == Team.CT);
 
     var teamList = team == Team.CT ? roundCfg.Ct : roundCfg.T;
     if (teamList.Count > 0) return teamList;
-    return roundCfg.All.Count > 0 ? roundCfg.All : _config.Config.Weapons.Pistols;
+    return roundCfg.All.Count > 0 ? roundCfg.All : _config.Config.Weapons.GetPistols(team == Team.CT);
   }
 
   public bool IsAuthorisedForAwp(ulong steamId)

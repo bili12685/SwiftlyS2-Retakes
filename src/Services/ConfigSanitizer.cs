@@ -183,9 +183,43 @@ public static class ConfigSanitizer
   /// </summary>
   public static bool SanitizeAll(JsonObject rootObj, string sectionName)
   {
-    var changed = SanitizeColonDelimitedKeys(rootObj);
+    var changed = MigrateLegacyPistolShape(rootObj, sectionName);
+    changed |= SanitizeColonDelimitedKeys(rootObj);
     changed |= SanitizeCaseInsensitiveDuplicateKeys(rootObj);
     changed |= NormalizeSectionKey(rootObj, sectionName);
     return changed;
   }
+
+  /// <summary>
+  /// Rewrites the legacy flat <c>Weapons.Pistols</c> array into the current
+  /// <c>{"All": [...]}</c> shape.
+  /// </summary>
+  /// <remarks>
+  /// This runs before the configuration is bound. Without it an existing config.json
+  /// fails to bind, and the loader's catch-all replaces the whole configuration with
+  /// defaults -- taking every unrelated setting down with it, not just the pistols.
+  /// </remarks>
+  public static bool MigrateLegacyPistolShape(JsonObject rootObj, string sectionName)
+  {
+    var sectionKey = FindKey(rootObj, sectionName);
+    if (sectionKey is null || rootObj[sectionKey] is not JsonObject section) return false;
+
+    var weaponsKey = FindKey(section, "Weapons");
+    if (weaponsKey is null || section[weaponsKey] is not JsonObject weapons) return false;
+
+    var pistolsKey = FindKey(weapons, "Pistols");
+    // Absent entirely, or already the object shape: nothing to migrate.
+    if (pistolsKey is null || weapons[pistolsKey] is not JsonArray legacy) return false;
+
+    weapons[pistolsKey] = new JsonObject { ["All"] = legacy.DeepClone() };
+    return true;
+  }
+
+  /// <summary>
+  /// Finds a property by name, ignoring case, so a hand-edited key is still migrated
+  /// rather than silently left in the legacy shape.
+  /// </summary>
+  private static string? FindKey(JsonObject obj, string name) =>
+    obj.Select(kvp => kvp.Key)
+       .FirstOrDefault(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
 }

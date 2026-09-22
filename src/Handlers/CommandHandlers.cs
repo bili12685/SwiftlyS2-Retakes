@@ -796,7 +796,7 @@ public sealed class CommandHandlers
   {
     var weapons = _config.Config.Weapons;
 
-    var hasPistols = weapons.Pistols.Count > 0;
+    var hasPistols = weapons.Pistols.All.Count > 0 || weapons.Pistols.T.Count > 0 || weapons.Pistols.Ct.Count > 0;
     var hasHalfBuy = weapons.HalfBuy.All.Count > 0 || weapons.HalfBuy.T.Count > 0 || weapons.HalfBuy.Ct.Count > 0;
     var hasFullBuy = weapons.FullBuy.All.Count > 0 || weapons.FullBuy.T.Count > 0 || weapons.FullBuy.Ct.Count > 0;
 
@@ -1035,7 +1035,7 @@ public sealed class CommandHandlers
       .Design.SetMenuTitle($"Pistols: Primary {selectedText}")
       .EnableSound();
 
-    foreach (var w in _config.Config.Weapons.Pistols)
+    foreach (var w in _config.Config.Weapons.GetPistols(isCt))
     {
       var opt = new ButtonMenuOption(WeaponDisplayName(w));
       opt.Click += async (_, args) =>
@@ -1181,7 +1181,7 @@ public sealed class CommandHandlers
     // Secondary always uses shared pistols list
     if (!isPrimary)
     {
-      return _config.Config.Weapons.Pistols
+      return _config.Config.Weapons.GetPistols(isCt)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(w => w, StringComparer.OrdinalIgnoreCase)
         .ToList();
@@ -1189,7 +1189,7 @@ public sealed class CommandHandlers
 
     if (roundType == RoundType.Pistol)
     {
-      return _config.Config.Weapons.Pistols
+      return _config.Config.Weapons.GetPistols(isCt)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(w => w, StringComparer.OrdinalIgnoreCase)
         .ToList();
@@ -1501,7 +1501,7 @@ public sealed class CommandHandlers
 
     var isCt = (Team)player.Controller.TeamNum == Team.CT;
     var weapons = _config.Config.Weapons;
-    var pistols = weapons.Pistols;
+    var pistols = weapons.GetPistols(isCt);
 
     // Check if weapon is a pistol
     var isPistol = pistols.Any(p => p.Equals(weaponName, StringComparison.OrdinalIgnoreCase));
