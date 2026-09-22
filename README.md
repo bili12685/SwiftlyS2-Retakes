@@ -666,30 +666,33 @@ section. This build writes version `2`.
 }
 ```
 
+**The field is mandatory. The plugin refuses to start and unloads itself if it is
+missing, not a number, or older than this build supports.** Nothing is repaired and
+nothing is stamped, so a config can never quietly pass without declaring what it is.
+
 | Situation | What happens |
 | :--- | :--- |
-| Field absent (a config predating versioning) | Migrated in place and stamped with the current version. No action needed. |
-| Field present and valid | Never rewritten, even if it differs from what this build would write. |
-| Field present but not a number | Repaired to the current version — a non-numeric value would fail the bind and reset the whole config. |
-| Field **below the minimum this build supports** | The plugin **refuses to start and unloads itself**, rather than running against a shape it does not fully understand. |
+| **Field absent** (a config predating versioning) | Treated as version `1` → below the minimum → **refused, plugin unloads**. |
+| **Field present but not a number** | **Refused, plugin unloads** — the value is not rewritten, so the problem stays visible. |
+| **Field below the minimum** | **Refused, plugin unloads.** |
+| Field present, numeric, at or above the minimum | Accepted. The value is never rewritten, even if it differs from what this build would write. |
+| Field *above* the current version | Accepted — the check is one-sided, so a downgrade is not caught. |
 
-The check runs on the version the file ends up at, **not** on what it originally
-declared. A config with no version field is version 1 — that is what the pre-versioning
-shape is — and it is upgraded and stamped *before* the check, so it arrives as the
-current version and is accepted. Rejecting it for being version 1 would brick every
-existing server on upgrade.
+The refusal names the file and the reason (missing / not a number / which version), and
+says how to recover: back the file up, delete it to have a fresh one generated, then
+re-apply your settings — or add `"ConfigVersion": 2` to the existing file yourself.
 
-`MinimumSupportedVersion` equals `CurrentVersion`, so the effective rule is **the config
-must end up current**. Only a config that *explicitly declares* an older version is
-turned away, because the sanitizers never rewrite a valid declaration — so it stays old
-and fails the check rather than being quietly repaired into passing.
+> **Upgrading an existing server:** your current `config.json` has no `ConfigVersion`,
+> so it will be refused on first start. That is intentional. Add the field, or delete the
+> file and reconfigure.
+>
+> If you add the field by hand to a config that still has the old flat
+> `Weapons.Pistols` array, the array is migrated automatically on that same start — the
+> migration still runs, it is just no longer what admits an old config.
 
-When the refusal fires, the log names the file, the declared version, and the minimum.
-Back the file up, delete it to have a fresh one generated, then re-apply your settings.
-
-> This does not cover the reverse case — a config *newer* than the plugin, which is what
-> happens if you downgrade the plugin while keeping the newer config. The check is
-> one-sided by design.
+`CurrentVersion` and `MinimumSupportedVersion` live in `RetakesConfig`. Raise
+`CurrentVersion` when the schema changes, and `MinimumSupportedVersion` when an old
+shape can no longer be handled at all.
 
 ---
 

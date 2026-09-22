@@ -129,14 +129,19 @@ public partial class SwiftlyS2_Retakes : BasePlugin
         // even if the self-unload below does not complete.
         if (!_config.IsConfigVersionSupported)
         {
+            var problem = _config.IsConfigVersionMalformed
+              ? "its ConfigVersion is present but is not a number"
+              : _config.DeclaredConfigVersion <= RetakesConfig.PreVersioningVersion
+                ? "it has no ConfigVersion, so it predates config versioning"
+                : $"it declares ConfigVersion {_config.DeclaredConfigVersion}";
+
             Core.Logger.LogPluginError(
-              "Retakes: {Path} declares ConfigVersion {Declared} and is still at {Actual} after migration, but this build requires at least {Minimum} (it writes {Current}). " +
-              "Refusing to start rather than run against a configuration shape this build does not fully understand, and unloading. " +
-              "Back up the file and delete it to have a fresh one generated, then re-apply your settings.",
+              "Retakes: refusing to start -- {Path} cannot be used because {Problem}. " +
+              "This build requires ConfigVersion {Current} and will not run against a configuration it cannot rely on, so it is unloading itself. " +
+              "Back the file up, delete it to have a fresh one generated, then re-apply your settings; " +
+              "or set \"ConfigVersion\": {Current} in the existing file yourself once you have reviewed the schema changes.",
               _config.ConfigPath,
-              _config.DeclaredConfigVersion,
-              _config.Config.ConfigVersion,
-              RetakesConfig.MinimumSupportedVersion,
+              problem,
               RetakesConfig.CurrentVersion);
 
             // Unload on the next tick: calling back into the plugin manager while this

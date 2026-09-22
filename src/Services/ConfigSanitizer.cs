@@ -181,10 +181,24 @@ public static class ConfigSanitizer
   /// <summary>
   /// Runs all sanitization passes on the JSON object.
   /// </summary>
-  public static bool SanitizeAll(JsonObject rootObj, string sectionName, int configVersion)
+  /// <summary>
+  /// State of the section's <c>ConfigVersion</c> field.
+  /// </summary>
+  public enum ConfigVersionField
+  {
+    /// <summary>No field: a config written before versioning existed.</summary>
+    Absent,
+
+    /// <summary>Field present but not a number.</summary>
+    Malformed,
+
+    /// <summary>Field present and numeric.</summary>
+    Declared,
+  }
+
+  public static bool SanitizeAll(JsonObject rootObj, string sectionName)
   {
     var changed = MigrateLegacyPistolShape(rootObj, sectionName);
-    changed |= EnsureConfigVersion(rootObj, sectionName, configVersion);
     changed |= SanitizeColonDelimitedKeys(rootObj);
     changed |= SanitizeCaseInsensitiveDuplicateKeys(rootObj);
     changed |= NormalizeSectionKey(rootObj, sectionName);
@@ -192,68 +206,27 @@ public static class ConfigSanitizer
   }
 
   /// <summary>
-  /// Reads the schema version the section declares. Returns false when the section is
-  /// missing, or declares no version, or declares something that is not a number.
+  /// Reads the schema version the section declares. The version field is never rewritten
+  /// here: the loader decides whether the declaration is acceptable, and silently
+  /// repairing one would hide exactly what that check exists to catch.
   /// </summary>
-  public static bool TryGetConfigVersion(JsonObject rootObj, string sectionName, out int version)
+  public static ConfigVersionField ReadConfigVersion(JsonObject rootObj, string sectionName, out int version)
   {
     version = 0;
 
     var sectionKey = FindKey(rootObj, sectionName);
-    if (sectionKey is null || rootObj[sectionKey] is not JsonObject section) return false;
+    if (sectionKey is null || rootObj[sectionKey] is not JsonObject section) return ConfigVersionField.Absent;
 
     var versionKey = FindKey(section, "ConfigVersion");
-    if (versionKey is null) return false;
+    if (versionKey is null) return ConfigVersionField.Absent;
 
-    return section[versionKey] is JsonValue value && value.TryGetValue(out version);
-  }
-
-  /// <summary>
-  /// Stamps the schema version when the section does not declare one, inserting it as
-  /// the first property so it sits at the top of the section.
-  /// </summary>
-  /// <remarks>
-  /// A config predating versioning has no field. It is stamped rather than treated as
-  /// version 0, which would otherwise be below every supported minimum and reject the
-  /// config on the first load after an upgrade.
-  /// </remarks>
-  public static bool EnsureConfigVersion(JsonObject rootObj, string sectionName, int configVersion)
-  {
-    var sectionKey = FindKey(rootObj, sectionName);
-    if (sectionKey is null || rootObj[sectionKey] is not JsonObject section) return false;
-
-    var versionKey = FindKey(section, "ConfigVersion");
-
-    // A valid declared version is never rewritten, even if we disagree with it.
-    if (versionKey is not null &&
-        section[versionKey] is JsonValue declared &&
-        declared.TryGetValue<int>(out _))
+    if (section[versionKey] is JsonValue value && value.TryGetValue(out version))
     {
-      return false;
+      return ConfigVersionField.Declared;
     }
 
-    // Missing, or present but not a number. A non-numeric value would fail the bind and
-    // the loader's catch-all would then replace the entire configuration with defaults,
-    // so it is repaired here rather than left alone.
-    //
-    // JsonObject keeps insertion order but cannot prepend, so rebuild with the version
-    // first and drop the old entry. Remove before re-adding: a node that still has a
-    // parent cannot be adopted.
-    var rebuilt = new JsonObject { ["ConfigVersion"] = configVersion };
-    foreach (var key in section.Select(kvp => kvp.Key).ToList())
-    {
-      if (versionKey is not null && string.Equals(key, versionKey, StringComparison.Ordinal))
-      {
-        continue;
-      }
-
-      var value = section[key];
-      section.Remove(key);
-      rebuilt[key] = value;
-    }
-
-    rootObj[sectionKey] = rebuilt;
-    return true;
+    version = 0;
+    return ConfigVersionField.Malformed;
   }
 
   /// <summary>

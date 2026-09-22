@@ -18,17 +18,21 @@ public interface IRetakesConfigService
   RetakesConfig Config { get; }
 
   /// <summary>
-  /// Schema version the config file declared, as written -- read before migration.
-  /// A config with no version field reports the pre-versioning version (1), because
-  /// that is what it is.
+  /// Schema version the config file declared. A config with no version field reports
+  /// the pre-versioning version (1), because that is what it is.
   /// </summary>
   int DeclaredConfigVersion { get; }
 
   /// <summary>
-  /// False when the config is still older than this build supports *after* migration.
-  /// A pre-versioning config is upgraded and stamped first, so it passes; only an
-  /// explicitly declared old version fails. The caller should refuse to start rather
-  /// than run against a shape this build does not fully understand.
+  /// True when the config carries a version field that is not a number.
+  /// </summary>
+  bool IsConfigVersionMalformed { get; }
+
+  /// <summary>
+  /// False unless the config declares a numeric version at least as new as this build
+  /// supports. A missing, out-of-date, or malformed declaration all fail. The caller
+  /// should refuse to start rather than run against a configuration this build cannot
+  /// rely on.
   /// </summary>
   bool IsConfigVersionSupported { get; }
 

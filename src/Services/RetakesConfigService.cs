@@ -35,28 +35,29 @@ public sealed class RetakesConfigService : IRetakesConfigService
   public RetakesConfig Config { get; private set; } = new();
 
   /// <summary>
-  /// Schema version the config file itself declared, read before anything is migrated
-  /// or stamped. A config with no version field is version <see cref="PreVersioningConfigVersion"/>
-  /// -- that is genuinely what it is, so it is reported honestly rather than passed off
-  /// as current.
+  /// Schema version the config file declared. A config with no version field reports
+  /// <see cref="RetakesConfig.PreVersioningVersion"/> -- that is what such a config is.
+  /// Left at that value when the field is present but not a number;
+  /// <see cref="IsConfigVersionMalformed"/> distinguishes the two.
   /// </summary>
-  public int DeclaredConfigVersion { get; private set; } = PreVersioningConfigVersion;
+  public int DeclaredConfigVersion { get; private set; } = RetakesConfig.PreVersioningVersion;
 
   /// <summary>
-  /// Whether the config is usable <em>after</em> migration. This deliberately looks at
-  /// the version the file ends up at, not the one it declared: a pre-versioning config
-  /// is upgraded and stamped before binding, so it arrives here as current and is
-  /// accepted. An explicitly declared old version is not rewritten by the sanitizers,
-  /// so it stays old, fails this check, and the plugin refuses to start.
+  /// True when the config carries a version field that is not a number. Reported
+  /// separately from a missing one so the refusal can say which is wrong.
+  /// </summary>
+  public bool IsConfigVersionMalformed { get; private set; }
+
+  /// <summary>
+  /// Whether the config declares an acceptable schema version. Strict by design: the
+  /// field must be present, numeric, and at least <see cref="RetakesConfig.MinimumSupportedVersion"/>.
+  /// A config predating versioning has no field and is refused along with an
+  /// out-of-date or malformed one -- nothing is repaired or stamped, so a config never
+  /// quietly passes without declaring what it is.
   /// </summary>
   public bool IsConfigVersionSupported =>
-    Config.ConfigVersion >= RetakesConfig.MinimumSupportedVersion;
-
-  /// <summary>
-  /// Version of a config written before versioning existed: the shape that predates the
-  /// ConfigVersion field. Such a config is migrated forward, not rejected.
-  /// </summary>
-  public const int PreVersioningConfigVersion = 1;
+    !IsConfigVersionMalformed &&
+    DeclaredConfigVersion >= RetakesConfig.MinimumSupportedVersion;
 
   public RetakesConfigService(ISwiftlyCore core, ILogger logger)
   {
@@ -87,10 +88,10 @@ public sealed class RetakesConfigService : IRetakesConfigService
       if (string.IsNullOrWhiteSpace(text)) return;
 
       // Accept comments and trailing commas here, matching what the Swiftly/MEI
-      // provider already tolerates when it reads this file. Without this the migration
-      // and the sanitizers silently no-op on a hand-edited config, and for a legacy
-      // Weapons.Pistols array that means the bind fails and the loader's catch-all
-      // replaces the whole configuration with defaults.
+      // provider already tolerates when it reads this file. Without this the sanitizers
+      // silently no-op on a hand-edited config, and for a legacy Weapons.Pistols array
+      // that means the bind fails and the loader's catch-all replaces the whole
+      // configuration with defaults.
       var node = JsonNode.Parse(text, nodeOptions: null, documentOptions: new JsonDocumentOptions
       {
         CommentHandling = JsonCommentHandling.Skip,
@@ -98,18 +99,32 @@ public sealed class RetakesConfigService : IRetakesConfigService
       });
       if (node is not JsonObject rootObj) return;
 
-      // Read what the file declares before the sanitizers stamp or migrate anything.
-      if (ConfigSanitizer.TryGetConfigVersion(rootObj, SectionName, out var declared))
+      // Read the declared version, never repair it: a missing or malformed value is
+      // precisely what the startup check exists to catch, so rewriting one here would
+      // hide the problem instead of surfacing it.
+      switch (ConfigSanitizer.ReadConfigVersion(rootObj, SectionName, out var declared))
       {
-        DeclaredConfigVersion = declared;
+        case ConfigSanitizer.ConfigVersionField.Declared:
+          DeclaredConfigVersion = declared;
+          IsConfigVersionMalformed = false;
+          break;
+
+        case ConfigSanitizer.ConfigVersionField.Malformed:
+          IsConfigVersionMalformed = true;
+          break;
+
+        default:
+          DeclaredConfigVersion = RetakesConfig.PreVersioningVersion;
+          IsConfigVersionMalformed = false;
+          break;
       }
 
-      var changed = ConfigSanitizer.SanitizeAll(rootObj, SectionName, RetakesConfig.CurrentVersion);
+      var changed = ConfigSanitizer.SanitizeAll(rootObj, SectionName);
       if (!changed) return;
 
       var updated = rootObj.ToJsonString(JsonOptions);
       File.WriteAllText(_path, updated);
-      _logger.LogPluginWarning("Retakes: config.json was migrated or sanitized (added a missing ConfigVersion, upgraded legacy keys, or removed ':' keys)");
+      _logger.LogPluginWarning("Retakes: config.json was sanitized (upgraded legacy keys or removed ':' keys)");
     }
     catch (Exception ex)
     {

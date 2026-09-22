@@ -34,6 +34,13 @@ public sealed class RetakesConfig
   /// </remarks>
   public const int MinimumSupportedVersion = 2;
 
+  /// <summary>
+  /// Version of a config written before versioning existed. Such a config has no way to
+  /// declare itself, so it is treated as this version -- and therefore refused, since
+  /// the minimum is above it.
+  /// </summary>
+  public const int PreVersioningVersion = 1;
+
   public AllocationConfig Allocation { get; set; } = new();
   public GrenadeConfig Grenades { get; set; } = new();
   public PreferencesConfig Preferences { get; set; } = new();
