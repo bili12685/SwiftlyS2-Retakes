@@ -14,11 +14,20 @@ public sealed class QueueConfig
   public bool ShouldRemoveSpectators { get; set; } = true;
 
   /// <summary>
-  /// Order in which waiting players are promoted when a slot opens.
-  /// "fifo" (default) promotes the player who has been waiting longest;
-  /// "random" shuffles the eligible players instead. Queue priority flags are
-  /// applied first in both modes.
+  /// How players are chosen when the roster changes. Queue priority flags always sort
+  /// ahead of non-priority players on the way in, unless noted.
   /// </summary>
+  /// <remarks>
+  /// <list type="bullet">
+  /// <item><c>"fifo"</c> (default) — the longest-waiting player is promoted, and the most
+  /// recently active player is the one moved to spectator.</item>
+  /// <item><c>"random"</c> — promotion is shuffled; demotion is still most-recent-first.</item>
+  /// <item><c>"allrandom"</c> — promotion and demotion are both shuffled. Queue-priority
+  /// players are exempt from demotion and keep playing (unless there are too few others
+  /// to make room).</item>
+  /// </list>
+  /// Anything else falls back to <c>"fifo"</c>.
+  /// </remarks>
   public string PromotionOrder { get; set; } = "fifo";
 
   /// <summary>

@@ -81,23 +81,88 @@ public sealed class QueueService : IQueueService
   }
 
   /// <summary>
+  /// How <c>Queue.PromotionOrder</c> was configured.
+  /// </summary>
+  private enum PromotionMode
+  {
+    /// <summary>Longest-waiting first, in both directions.</summary>
+    Fifo,
+
+    /// <summary>Promotion is shuffled; demotion still removes the most recent arrival.</summary>
+    Random,
+
+    /// <summary>Promotion and demotion are both shuffled. Queue priority is exempt from demotion.</summary>
+    AllRandom,
+  }
+
+  /// <summary>
+  /// Reads <c>Queue.PromotionOrder</c>. Anything unrecognised falls back to FIFO, so a
+  /// typo cannot silently turn the queue into a lottery.
+  /// </summary>
+  private PromotionMode CurrentPromotionMode()
+  {
+    var value = (_config.Config.Queue.PromotionOrder ?? string.Empty).Trim();
+    if (value.Equals("allrandom", StringComparison.OrdinalIgnoreCase)) return PromotionMode.AllRandom;
+    if (value.Equals("random", StringComparison.OrdinalIgnoreCase)) return PromotionMode.Random;
+    return PromotionMode.Fifo;
+  }
+
+  /// <summary>
   /// Orders waiting players for promotion: queue priority first, then either
-  /// longest-waiting (FIFO) or a shuffle, per <c>Queue.PromotionOrder</c>.
+  /// longest-waiting or a shuffle depending on the configured mode.
   /// </summary>
   private List<IPlayer> OrderQueueForPromotion(List<IPlayer> allPlayers)
   {
-    var randomise = string.Equals(_config.Config.Queue.PromotionOrder, "random", StringComparison.OrdinalIgnoreCase);
-
     var eligible = _queuePlayers
       .Select(entry => (Player: allPlayers.FirstOrDefault(p => p.SteamID == entry.Key), Entry: entry))
       .Where(x => x.Player is not null && x.Player.IsValid)
       .OrderBy(x => HasQueuePriority(x.Player!) ? 0 : 1);
 
-    var ordered = randomise
-      ? eligible.ThenBy(_ => _random.Next())
-      : eligible.ThenBy(x => x.Entry.Value);
+    var ordered = CurrentPromotionMode() == PromotionMode.Fifo
+      ? eligible.ThenBy(x => x.Entry.Value)
+      : eligible.ThenBy(_ => _random.Next());
 
     return ordered.Select(x => x.Player!).ToList();
+  }
+
+  /// <summary>
+  /// Chooses who is pushed out to spectator when the server holds more players than
+  /// <c>Queue.MaxPlayers</c> allows.
+  /// </summary>
+  /// <remarks>
+  /// FIFO and Random both take the most recently active first, considering queue-priority
+  /// players last. AllRandom shuffles instead and treats queue priority as an exemption,
+  /// so a priority player keeps playing rather than being picked by chance.
+  ///
+  /// The exemption yields only when there are not enough other players to make room:
+  /// without that fallback the cap could not be enforced at all and the server would sit
+  /// above MaxPlayers indefinitely.
+  /// </remarks>
+  private List<IPlayer> SelectForDemotion(List<IPlayer> teamPlayers, int excessCount)
+  {
+    if (CurrentPromotionMode() == PromotionMode.AllRandom)
+    {
+      var exempt = teamPlayers.Where(HasQueuePriority).ToList();
+      var candidates = teamPlayers.Where(p => !HasQueuePriority(p)).ToList();
+
+      var picked = candidates.OrderBy(_ => _random.Next()).Take(excessCount).ToList();
+
+      var shortfall = excessCount - picked.Count;
+      if (shortfall > 0)
+      {
+        _logger.LogDebug("QueueService: only {Available} non-priority players for {Needed} slots, demoting {Extra} prioritised player(s)", candidates.Count, excessCount, shortfall);
+        picked.AddRange(exempt.OrderBy(_ => _random.Next()).Take(shortfall));
+      }
+
+      return picked;
+    }
+
+    // Most recently active first, non-priority first.
+    return teamPlayers
+      .OrderBy(p => HasQueuePriority(p) ? 1 : 0)
+      .ThenByDescending(p => _activePlayers.TryGetValue(p.SteamID, out var seq) ? seq : long.MinValue)
+      .Take(excessCount)
+      .ToList();
   }
 
   public int GetTargetNumTerrorists()
@@ -412,14 +477,7 @@ public sealed class QueueService : IQueueService
     var maxPerTeam = cfg.MaxPlayers / 2;
     var excessCount = teamPlayers.Count - cfg.MaxPlayers;
 
-    // Pick excess players to remove: most recently active first, non-VIP first.
-    // Ordered by arrival sequence, not Player.Slot, so the same players are not the
-    // ones pushed out every round.
-    var toRemove = teamPlayers
-      .OrderBy(p => HasQueuePriority(p) ? 1 : 0)
-      .ThenByDescending(p => _activePlayers.TryGetValue(p.SteamID, out var seq) ? seq : long.MinValue)
-      .Take(excessCount)
-      .ToList();
+    var toRemove = SelectForDemotion(teamPlayers, excessCount);
 
     _state.BeginTeamChangeBypass();
     try

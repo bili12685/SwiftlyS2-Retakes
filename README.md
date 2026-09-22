@@ -437,7 +437,7 @@ Grenades not listed here are uncapped.
 | `Queue.ForceEvenTeamsWhenPlayerCountIsMultipleOf10` | `true` | Force even teams when player count is a multiple of 10 |
 | `Queue.QueuePriorityFlags` | `"permission:vip"` | Permission(s) that grant queue priority. Comma-separate for several |
 | `Queue.QueueImmunityFlags` | `""` | Permission(s) that exempt players from being bumped. Empty reuses `QueuePriorityFlags` |
-| `Queue.PromotionOrder` | `"fifo"` | Who gets promoted when a slot opens: `"fifo"` = longest-waiting first, `"random"` = shuffled. Queue priority flags are applied first in both modes |
+| `Queue.PromotionOrder` | `"fifo"` | How the roster is decided: `"fifo"`, `"random"`, or `"allrandom"` — see below |
 | `Queue.ShouldRemoveSpectators` | `true` | Move spectators to queue when a slot opens |
 | `Queue.AutoJoinSpectators` | `false` | Park players in spectator when they connect, keeping the team-select menu open so they pick a side themselves |
 | `Queue.AutoJoinGame` | `false` | Drop players straight into the game on connect (or into the queue when full), without showing the team-select menu |
@@ -447,6 +447,30 @@ Grenades not listed here are uncapped.
 A map change clears the queue and recounts from zero. Everyone re-picks a side on the new map, so both the active set and the waiting order are rebuilt from whoever joins T/CT first. A player who lets the team-select timer run out drops to spectator and enters the queue when they pick a side.
 
 **Spectating is not a place in line.** A player who leaves their team — by choosing spectator, or because the AFK manager moved them — gives up their seat and is *not* added to the waiting queue. They re-enter it by picking T/CT again, at the back of the line.
+
+#### `Queue.PromotionOrder`
+
+Two things decide who plays: who comes in when a slot frees (promotion), and who is pushed
+to spectator when the server holds more players than `MaxPlayers` allows (demotion).
+
+| Value | Promotion | Demotion |
+| :--- | :--- | :--- |
+| `"fifo"` *(default)* | Longest-waiting first | Most recently active first |
+| `"random"` | Shuffled | Most recently active first |
+| `"allrandom"` | Shuffled | **Shuffled** — queue-priority players are exempt and keep playing |
+
+All three draw promotions from the **same pool**: players waiting in the queue, i.e. those
+who picked a side. Someone spectating without choosing is not a candidate in any mode.
+
+**Queue priority** (`QueuePriorityFlags`) sorts ahead of everyone else on the way in, in
+all three modes. On the way out, `"fifo"` and `"random"` merely consider priority players
+last, so they can still be demoted if enough others are not available — only
+`"allrandom"` exempts them outright, and even there the exemption yields when there are too
+few non-priority players to make room, since otherwise the `MaxPlayers` cap could never be
+enforced.
+
+Anything unrecognised falls back to `"fifo"`, so a typo cannot silently turn the roster
+into a lottery.
 
 <details>
 <summary><b><code>QueuePriorityFlags</code> ships a default nobody holds — read this before relying on VIP priority</b></summary>
