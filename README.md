@@ -501,8 +501,12 @@ Grant it to whichever group should have VIP:
 ```
 
 Or point the config at a permission you already grant — the two just have to
-match. Wildcard entries use the framework's `xxx.*` form, so a single broad
-permission can cover these checks too.
+match.
+
+Wildcards work in two forms, both matching a *stored* permission against a requested
+one (not the reverse): `xxx.*` covers everything under that prefix, and a bare `*`
+covers everything at all. So an admin group granting `"*"` also satisfies these checks,
+which means administrators are treated as queue priority as well.
 
 </details>
 
