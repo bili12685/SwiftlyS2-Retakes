@@ -296,10 +296,6 @@ public sealed class QueueService : IQueueService
     return HookResult.Continue;
   }
 
-  // Keeps the team-select menu from auto-closing once a connecting player has
-  // been parked in spectator, so they can pick a side at their own pace.
-  private const float TeamMenuHoldSeconds = 3600f;
-
   public void OnPlayerConnected(IPlayer player)
   {
     if (!PlayerUtil.IsHuman(player))
@@ -337,16 +333,12 @@ public sealed class QueueService : IQueueService
       player.ChangeTeam(Team.Spectator);
     }
 
-    // ForceTeamTime is a native-backed ref, so keep the write guarded.
-    try
-    {
-      controller.ForceTeamTime.Value = _core.Engine.GlobalVars.CurrentTime + TeamMenuHoldSeconds;
-      controller.ForceTeamTimeUpdated();
-    }
-    catch (Exception ex)
-    {
-      _logger.LogPluginDebug("QueueService: [{Name}] Could not extend ForceTeamTime: {Error}", controller.PlayerName, ex.Message);
-    }
+    // Deliberately nothing else. An earlier revision also pushed ForceTeamTime an hour
+    // into the future to "hold the team-select menu open", copied from the upstream
+    // plugin without verifying what the field means. The engine already presents the
+    // team menu to a spectating player, and on a real server that write coincided with
+    // players being unable to pick a side, so it is gone. The queue does not need it:
+    // waiting players are spectators by design and rejoin through the normal flow.
   }
 
   private void AddConnectedPlayerToGame(IPlayer player, Configuration.QueueConfig cfg)
