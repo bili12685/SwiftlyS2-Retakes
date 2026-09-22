@@ -8,8 +8,8 @@ namespace SwiftlyS2_Retakes.Interfaces;
 /// </summary>
 public interface IQueueService
 {
-  IReadOnlySet<ulong> ActivePlayers { get; }
-  IReadOnlySet<ulong> QueuePlayers { get; }
+  IReadOnlyCollection<ulong> ActivePlayers { get; }
+  IReadOnlyCollection<ulong> QueuePlayers { get; }
   int ActiveCount { get; }
   int QueueCount { get; }
 

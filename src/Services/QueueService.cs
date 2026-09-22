@@ -16,11 +16,19 @@ public sealed class QueueService : IQueueService
   private readonly IRetakesConfigService _config;
   private readonly IMessageService _messages;
   private readonly IRetakesStateService _state;
+  private readonly Random _random;
 
-  private readonly HashSet<ulong> _activePlayers = new();
-  private readonly HashSet<ulong> _queuePlayers = new();
+  // Membership maps to a monotonically increasing sequence number recording when the
+  // player entered that set, so ordering reflects how long they have actually been
+  // waiting rather than an unrelated engine property. HashSet could not represent
+  // arrival order, which is why promotion used to fall back to Player.Slot -- the
+  // client's connection index, stable for the life of a connection, so the same
+  // players won every time.
+  private readonly Dictionary<ulong, long> _activePlayers = new();
+  private readonly Dictionary<ulong, long> _queuePlayers = new();
   private readonly HashSet<ulong> _roundTerrorists = new();
   private readonly HashSet<ulong> _roundCounterTerrorists = new();
+  private long _nextSequence;
 
   // Guards against scheduling TerminateRound more than once per round.
   // Calling TerminateRound twice within the same world-update tick (e.g. when
@@ -29,19 +37,67 @@ public sealed class QueueService : IQueueService
   // Reset on round start (SetRoundTeams) and round end (ClearRoundTeams).
   private bool _terminationScheduled;
 
-  public IReadOnlySet<ulong> ActivePlayers => _activePlayers;
-  public IReadOnlySet<ulong> QueuePlayers => _queuePlayers;
+  public IReadOnlyCollection<ulong> ActivePlayers => _activePlayers.Keys;
+  public IReadOnlyCollection<ulong> QueuePlayers => _queuePlayers.Keys;
 
   public int ActiveCount => _activePlayers.Count;
   public int QueueCount => _queuePlayers.Count;
 
-  public QueueService(ISwiftlyCore core, ILogger logger, IRetakesConfigService config, IMessageService messages, IRetakesStateService state)
+  public QueueService(ISwiftlyCore core, ILogger logger, IRetakesConfigService config, IMessageService messages, IRetakesStateService state, Random random)
   {
     _core = core;
     _logger = logger;
     _config = config;
     _messages = messages;
     _state = state;
+    _random = random;
+  }
+
+  /// <summary>
+  /// Adds a player to the waiting queue, stamping their arrival position. A player
+  /// who is already waiting keeps the position they had, so re-queueing them does
+  /// not push them to the back of the line.
+  /// </summary>
+  private void EnqueuePlayer(ulong steamId)
+  {
+    if (!_queuePlayers.ContainsKey(steamId))
+    {
+      _queuePlayers[steamId] = _nextSequence++;
+    }
+  }
+
+  /// <summary>
+  /// Moves a player into the active set and stamps when they got there. Idempotent:
+  /// a player who is already active keeps their original stamp, so the per-round
+  /// re-adoption in <see cref="EnforceMaxPlayers"/> cannot reshuffle the order.
+  /// </summary>
+  private void MarkActive(ulong steamId)
+  {
+    _queuePlayers.Remove(steamId);
+    if (!_activePlayers.ContainsKey(steamId))
+    {
+      _activePlayers[steamId] = _nextSequence++;
+    }
+  }
+
+  /// <summary>
+  /// Orders waiting players for promotion: queue priority first, then either
+  /// longest-waiting (FIFO) or a shuffle, per <c>Queue.PromotionOrder</c>.
+  /// </summary>
+  private List<IPlayer> OrderQueueForPromotion(List<IPlayer> allPlayers)
+  {
+    var randomise = string.Equals(_config.Config.Queue.PromotionOrder, "random", StringComparison.OrdinalIgnoreCase);
+
+    var eligible = _queuePlayers
+      .Select(entry => (Player: allPlayers.FirstOrDefault(p => p.SteamID == entry.Key), Entry: entry))
+      .Where(x => x.Player is not null && x.Player.IsValid)
+      .OrderBy(x => HasQueuePriority(x.Player!) ? 0 : 1);
+
+    var ordered = randomise
+      ? eligible.ThenBy(_ => _random.Next())
+      : eligible.ThenBy(x => x.Entry.Value);
+
+    return ordered.Select(x => x.Player!).ToList();
   }
 
   public int GetTargetNumTerrorists()
@@ -58,8 +114,8 @@ public sealed class QueueService : IQueueService
     return _activePlayers.Count - GetTargetNumTerrorists();
   }
 
-  public bool IsActive(ulong steamId) => _activePlayers.Contains(steamId);
-  public bool IsQueued(ulong steamId) => _queuePlayers.Contains(steamId);
+  public bool IsActive(ulong steamId) => _activePlayers.ContainsKey(steamId);
+  public bool IsQueued(ulong steamId) => _queuePlayers.ContainsKey(steamId);
 
   public HookResult OnPlayerJoinedTeam(IPlayer player, Team fromTeam, Team toTeam)
   {
@@ -80,7 +136,7 @@ public sealed class QueueService : IQueueService
     }
 
     // Player is already active
-    if (_activePlayers.Contains(steamId))
+    if (_activePlayers.ContainsKey(steamId))
     {
       _logger.LogPluginDebug("QueueService: [{Name}] Player is active", player.Controller.PlayerName);
 
@@ -109,7 +165,7 @@ public sealed class QueueService : IQueueService
         {
           _logger.LogPluginInformation("QueueService: [{Name}] Prevented mid-round team change", player.Controller.PlayerName);
           _activePlayers.Remove(steamId);
-          _queuePlayers.Add(steamId);
+          EnqueuePlayer(steamId);
 
           // Kill and move to spectator
           if (player.Controller.PawnIsAlive && player.Pawn is not null)
@@ -127,7 +183,7 @@ public sealed class QueueService : IQueueService
     }
 
     // Player is not active - check if we can add them
-    if (!_queuePlayers.Contains(steamId))
+    if (!_queuePlayers.ContainsKey(steamId))
     {
       var rules = _core.EntitySystem.GetGameRules();
       var isWarmup = rules is not null && rules.WarmupPeriod;
@@ -136,7 +192,7 @@ public sealed class QueueService : IQueueService
       if (isWarmup && _activePlayers.Count < cfg.MaxPlayers)
       {
         _logger.LogPluginInformation("QueueService: [{Name}] Added to active players (warmup)", player.Controller.PlayerName);
-        _activePlayers.Add(steamId);
+        MarkActive(steamId);
         return HookResult.Continue;
       }
 
@@ -144,7 +200,7 @@ public sealed class QueueService : IQueueService
       _logger.LogPluginInformation("QueueService: [{Name}] Added to queue", player.Controller.PlayerName);
       var loc = _core.Translation.GetPlayerLocalizer(player);
       _messages.Chat(player, loc["queue.added"]);
-      _queuePlayers.Add(steamId);
+      EnqueuePlayer(steamId);
 
       if (!isWarmup && toTeam != Team.Spectator)
       {
@@ -231,7 +287,7 @@ public sealed class QueueService : IQueueService
   private void AddConnectedPlayerToGame(IPlayer player, Configuration.QueueConfig cfg)
   {
     var steamId = player.SteamID;
-    if (_activePlayers.Contains(steamId) || _queuePlayers.Contains(steamId))
+    if (_activePlayers.ContainsKey(steamId) || _queuePlayers.ContainsKey(steamId))
     {
       return;
     }
@@ -245,8 +301,7 @@ public sealed class QueueService : IQueueService
     if (_activePlayers.Count < cfg.MaxPlayers)
     {
       _logger.LogPluginInformation("QueueService: [{Name}] Auto-joined the game on connect", controller.PlayerName);
-      _activePlayers.Add(steamId);
-      _queuePlayers.Remove(steamId);
+      MarkActive(steamId);
 
       _state.BeginTeamChangeBypass();
       try { player.SwitchTeam(Team.CT); }
@@ -255,7 +310,7 @@ public sealed class QueueService : IQueueService
     }
 
     _logger.LogPluginInformation("QueueService: [{Name}] Auto-joined the queue on connect (server full)", controller.PlayerName);
-    _queuePlayers.Add(steamId);
+    EnqueuePlayer(steamId);
 
     if (controller.PawnIsAlive && player.Pawn is not null)
     {
@@ -285,21 +340,13 @@ public sealed class QueueService : IQueueService
     {
       var allPlayers = _core.PlayerManager.GetAllPlayers().Where(p => p.IsValid).ToList();
 
-      // Prioritize players with queue priority, then by slot (join order)
-      var playersToAddList = _queuePlayers
-        .Select(steamId => allPlayers.FirstOrDefault(p => p.SteamID == steamId))
-        .Where(p => p is not null && p.IsValid)
-        .OrderBy(p => HasQueuePriority(p!) ? 0 : 1)
-        .ThenBy(p => p!.Slot)
-        .Take(playersToAdd)
-        .ToList();
+      var playersToAddList = OrderQueueForPromotion(allPlayers).Take(playersToAdd).ToList();
 
       foreach (var player in playersToAddList)
       {
         if (player is null || !player.IsValid) continue;
 
-        _queuePlayers.Remove(player.SteamID);
-        _activePlayers.Add(player.SteamID);
+        MarkActive(player.SteamID);
         _state.BeginTeamChangeBypass();
         try { player.SwitchTeam(Team.CT); }
         finally { _state.EndTeamChangeBypass(); }
@@ -313,7 +360,7 @@ public sealed class QueueService : IQueueService
     if (_activePlayers.Count >= cfg.MaxPlayers && _queuePlayers.Count > 0)
     {
       var allPlayers = _core.PlayerManager.GetAllPlayers().Where(p => p.IsValid).ToList();
-      foreach (var steamId in _queuePlayers)
+      foreach (var steamId in _queuePlayers.Keys)
       {
         var player = allPlayers.FirstOrDefault(p => p.SteamID == steamId);
         if (player is null || !player.IsValid) continue;
@@ -337,8 +384,7 @@ public sealed class QueueService : IQueueService
     // Sync _activePlayers with reality: add any untracked team players, remove stale entries
     foreach (var p in teamPlayers)
     {
-      _activePlayers.Add(p.SteamID);
-      _queuePlayers.Remove(p.SteamID);
+      MarkActive(p.SteamID);
     }
 
     if (teamPlayers.Count <= cfg.MaxPlayers)
@@ -347,10 +393,12 @@ public sealed class QueueService : IQueueService
     var maxPerTeam = cfg.MaxPlayers / 2;
     var excessCount = teamPlayers.Count - cfg.MaxPlayers;
 
-    // Pick excess players to remove: newest first (highest slot), non-VIP first
+    // Pick excess players to remove: most recently active first, non-VIP first.
+    // Ordered by arrival sequence, not Player.Slot, so the same players are not the
+    // ones pushed out every round.
     var toRemove = teamPlayers
       .OrderBy(p => HasQueuePriority(p) ? 1 : 0)
-      .ThenByDescending(p => p.Slot)
+      .ThenByDescending(p => _activePlayers.TryGetValue(p.SteamID, out var seq) ? seq : long.MinValue)
       .Take(excessCount)
       .ToList();
 
@@ -360,7 +408,7 @@ public sealed class QueueService : IQueueService
       foreach (var player in toRemove)
       {
         _activePlayers.Remove(player.SteamID);
-        _queuePlayers.Add(player.SteamID);
+        EnqueuePlayer(player.SteamID);
 
         if (player.Controller.PawnIsAlive && player.Pawn is not null)
         {
@@ -388,7 +436,7 @@ public sealed class QueueService : IQueueService
 
     var allPlayers = _core.PlayerManager.GetAllPlayers().Where(p => p.IsValid).ToList();
 
-    var vipQueuePlayers = _queuePlayers
+    var vipQueuePlayers = _queuePlayers.Keys
       .Select(steamId => allPlayers.FirstOrDefault(p => p.SteamID == steamId))
       .Where(p => p is not null && p.IsValid && HasQueuePriority(p!))
       .ToList();
@@ -399,11 +447,12 @@ public sealed class QueueService : IQueueService
     {
       if (vipPlayer is null || !vipPlayer.IsValid) continue;
 
-      // Find replaceable non-VIP players (newest first by slot)
-      var replaceablePlayers = _activePlayers
+      // Find replaceable non-VIP players: most recently active first, by arrival
+      // sequence rather than Player.Slot so the same player is not always the victim.
+      var replaceablePlayers = _activePlayers.Keys
         .Select(steamId => allPlayers.FirstOrDefault(p => p.SteamID == steamId))
         .Where(p => p is not null && p.IsValid && !HasQueuePriority(p!) && !HasQueueImmunity(p!))
-        .OrderByDescending(p => p!.Slot)
+        .OrderByDescending(p => _activePlayers.TryGetValue(p!.SteamID, out var seq) ? seq : long.MinValue)
         .ToList();
 
       if (replaceablePlayers.Count == 0)
@@ -421,12 +470,11 @@ public sealed class QueueService : IQueueService
       }
       replaceablePlayer.ChangeTeam(Team.Spectator);
       _activePlayers.Remove(replaceablePlayer.SteamID);
-      _queuePlayers.Add(replaceablePlayer.SteamID);
+      EnqueuePlayer(replaceablePlayer.SteamID);
       var replaceableLoc = _core.Translation.GetPlayerLocalizer(replaceablePlayer);
       _messages.Chat(replaceablePlayer, replaceableLoc["queue.moved_out", vipPlayer.Controller.PlayerName]);
 
-      _activePlayers.Add(vipPlayer.SteamID);
-      _queuePlayers.Remove(vipPlayer.SteamID);
+      MarkActive(vipPlayer.SteamID);
       _state.BeginTeamChangeBypass();
       try { vipPlayer.SwitchTeam(Team.CT); }
       finally { _state.EndTeamChangeBypass(); }
@@ -442,7 +490,7 @@ public sealed class QueueService : IQueueService
     var allPlayers = _core.PlayerManager.GetAllPlayers().Where(p => p.IsValid).ToList();
     var connectedSteamIds = allPlayers.Select(p => p.SteamID).ToHashSet();
 
-    var disconnectedActive = _activePlayers.Where(id => !connectedSteamIds.Contains(id)).ToList();
+    var disconnectedActive = _activePlayers.Keys.Where(id => !connectedSteamIds.Contains(id)).ToList();
     if (disconnectedActive.Count > 0)
     {
       _logger.LogDebug("QueueService: Removing {Count} disconnected active players", disconnectedActive.Count);
@@ -454,7 +502,7 @@ public sealed class QueueService : IQueueService
       }
     }
 
-    var disconnectedQueue = _queuePlayers.Where(id => !connectedSteamIds.Contains(id)).ToList();
+    var disconnectedQueue = _queuePlayers.Keys.Where(id => !connectedSteamIds.Contains(id)).ToList();
     if (disconnectedQueue.Count > 0)
     {
       _logger.LogDebug("QueueService: Removing {Count} disconnected queue players", disconnectedQueue.Count);
@@ -579,7 +627,7 @@ public sealed class QueueService : IQueueService
 
     var allPlayers = _core.PlayerManager.GetAllPlayers().Where(p => p.IsValid).ToList();
 
-    foreach (var steamId in _activePlayers)
+    foreach (var steamId in _activePlayers.Keys)
     {
       var player = allPlayers.FirstOrDefault(p => p.SteamID == steamId);
       if (player is null || !player.IsValid) continue;
@@ -606,14 +654,22 @@ public sealed class QueueService : IQueueService
     _logger.LogDebug("QueueService: Round teams cleared");
   }
 
+  /// <summary>
+  /// Called on map load: clear everything and recount from zero. A map change forces
+  /// every player to pick a side again, so both the active set and the waiting queue
+  /// are rebuilt from whoever joins T/CT first on the new map. Anyone who lets the
+  /// team-select timer run out drops to spectator and re-enters the queue when they
+  /// pick a side.
+  /// </summary>
   public void Reset()
   {
     _activePlayers.Clear();
     _queuePlayers.Clear();
     _roundTerrorists.Clear();
     _roundCounterTerrorists.Clear();
+    _nextSequence = 0;
     _terminationScheduled = false;
-    _logger.LogDebug("QueueService: Reset all queues");
+    _logger.LogDebug("QueueService: Reset all queues, sequence restarted");
   }
 
   private bool HasQueuePriority(IPlayer player)
@@ -658,11 +714,11 @@ public sealed class QueueService : IQueueService
   {
     var allPlayers = _core.PlayerManager.GetAllPlayers().Where(p => p.IsValid).ToList();
 
-    var activeNames = _activePlayers
+    var activeNames = _activePlayers.Keys
       .Select(id => allPlayers.FirstOrDefault(p => p.SteamID == id)?.Controller?.PlayerName ?? id.ToString())
       .ToList();
 
-    var queueNames = _queuePlayers
+    var queueNames = _queuePlayers.Keys
       .Select(id => allPlayers.FirstOrDefault(p => p.SteamID == id)?.Controller?.PlayerName ?? id.ToString())
       .ToList();
 

@@ -419,11 +419,14 @@ Grenades not listed here are uncapped.
 | `Queue.ForceEvenTeamsWhenPlayerCountIsMultipleOf10` | `true` | Force even teams when player count is a multiple of 10 |
 | `Queue.QueuePriorityFlags` | `"permission:vip"` | Permission(s) that grant queue priority. Comma-separate for several |
 | `Queue.QueueImmunityFlags` | `""` | Permission(s) that exempt players from being bumped. Empty reuses `QueuePriorityFlags` |
+| `Queue.PromotionOrder` | `"fifo"` | Who gets promoted when a slot opens: `"fifo"` = longest-waiting first, `"random"` = shuffled. Queue priority flags are applied first in both modes |
 | `Queue.ShouldRemoveSpectators` | `true` | Move spectators to queue when a slot opens |
 | `Queue.AutoJoinSpectators` | `false` | Park players in spectator when they connect, keeping the team-select menu open so they pick a side themselves |
 | `Queue.AutoJoinGame` | `false` | Drop players straight into the game on connect (or into the queue when full), without showing the team-select menu |
 
 > `Queue.AutoJoinGame` takes priority over `Queue.AutoJoinSpectators`. With both `false` (the default) connecting players keep the vanilla behaviour — the engine assigns them and the queue system adjusts on their first team change.
+
+A map change clears the queue and recounts from zero. Everyone re-picks a side on the new map, so both the active set and the waiting order are rebuilt from whoever joins T/CT first. A player who lets the team-select timer run out drops to spectator and enters the queue when they pick a side.
 
 <details>
 <summary><b><code>QueuePriorityFlags</code> ships a default nobody holds — read this before relying on VIP priority</b></summary>
