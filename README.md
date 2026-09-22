@@ -652,6 +652,38 @@ Each file contains the spawn positions used by the retakes allocator. A template
 
 ---
 
+## Config Version
+
+`config.json` carries a `ConfigVersion` field as the **first key** of the `retakes`
+section. This build writes version `2`.
+
+```jsonc
+{
+  "retakes": {
+    "ConfigVersion": 2,
+    "Allocation": { ... }
+  }
+}
+```
+
+| Situation | What happens |
+| :--- | :--- |
+| Field absent (a config predating versioning) | Migrated in place and stamped with the current version. No action needed. |
+| Field present and valid | Never rewritten, even if it differs from what this build would write. |
+| Field present but not a number | Repaired to the current version — a non-numeric value would fail the bind and reset the whole config. |
+| Field **below the minimum this build supports** | The plugin **refuses to start and unloads itself**, rather than running against a shape it does not fully understand. |
+
+The minimum lives in `RetakesConfig.MinimumSupportedVersion`. It is currently `1`
+(version 1 is the pre-versioning shape, and it is upgraded automatically), so no
+realistic config trips the refusal yet — the guard exists so a future breaking change
+can raise it instead of silently half-working.
+
+When the refusal does fire, the log names the file, the declared version, and the
+minimum. Back the file up, delete it to have a fresh one generated, then re-apply your
+settings.
+
+---
+
 ## Building
 
 ```bash

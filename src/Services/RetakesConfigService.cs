@@ -34,6 +34,15 @@ public sealed class RetakesConfigService : IRetakesConfigService
 
   public RetakesConfig Config { get; private set; } = new();
 
+  /// <summary>
+  /// Schema version the loaded config declared. Defaults to the current version: a
+  /// config with no version field predates versioning and is migrated and stamped by
+  /// the sanitizers, so it must not be read as version 0 and rejected on upgrade.
+  /// </summary>
+  public int DeclaredConfigVersion { get; private set; } = RetakesConfig.CurrentVersion;
+
+  public bool IsConfigVersionSupported => DeclaredConfigVersion >= RetakesConfig.MinimumSupportedVersion;
+
   public RetakesConfigService(ISwiftlyCore core, ILogger logger)
   {
     _core = core;
@@ -74,12 +83,18 @@ public sealed class RetakesConfigService : IRetakesConfigService
       });
       if (node is not JsonObject rootObj) return;
 
-      var changed = ConfigSanitizer.SanitizeAll(rootObj, SectionName);
+      // Read what the file declares before the sanitizers stamp or migrate anything.
+      if (ConfigSanitizer.TryGetConfigVersion(rootObj, SectionName, out var declared))
+      {
+        DeclaredConfigVersion = declared;
+      }
+
+      var changed = ConfigSanitizer.SanitizeAll(rootObj, SectionName, RetakesConfig.CurrentVersion);
       if (!changed) return;
 
       var updated = rootObj.ToJsonString(JsonOptions);
       File.WriteAllText(_path, updated);
-      _logger.LogWarning("Retakes: sanitized config.json to remove ':' keys (prevents duplicate key load errors)");
+      _logger.LogPluginWarning("Retakes: config.json was migrated or sanitized (added a missing ConfigVersion, upgraded legacy keys, or removed ':' keys)");
     }
     catch (Exception ex)
     {

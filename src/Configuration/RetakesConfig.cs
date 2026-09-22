@@ -5,6 +5,32 @@ namespace SwiftlyS2_Retakes.Configuration;
 /// </summary>
 public sealed class RetakesConfig
 {
+  /// <summary>
+  /// Schema version of this build. Written as the first field of the config section so
+  /// it is visible at the top of the file. A config without the field predates
+  /// versioning; it is migrated and stamped on load rather than rejected.
+  /// </summary>
+  /// <remarks>
+  /// Bump this whenever a change cannot be migrated in place. Old configs are refused
+  /// once <see cref="MinimumSupportedVersion"/> moves past them.
+  /// </remarks>
+  public int ConfigVersion { get; set; } = CurrentVersion;
+
+  /// <summary>The schema version this build writes and expects.</summary>
+  public const int CurrentVersion = 2;
+
+  /// <summary>
+  /// Oldest schema version this build will still run against. A config declaring less
+  /// than this is refused and the plugin unloads itself, rather than starting with a
+  /// shape it does not fully understand.
+  /// </summary>
+  /// <remarks>
+  /// Left at 1 for now: version 1 is the pre-versioning shape and is upgraded in place
+  /// by the loader's migration, so nothing realistic trips this yet. Raise it when a
+  /// breaking change lands that migration cannot cover.
+  /// </remarks>
+  public const int MinimumSupportedVersion = 1;
+
   public AllocationConfig Allocation { get; set; } = new();
   public GrenadeConfig Grenades { get; set; } = new();
   public PreferencesConfig Preferences { get; set; } = new();

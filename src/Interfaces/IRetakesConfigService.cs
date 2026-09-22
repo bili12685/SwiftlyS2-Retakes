@@ -18,6 +18,19 @@ public interface IRetakesConfigService
   RetakesConfig Config { get; }
 
   /// <summary>
+  /// Schema version the loaded config declared. A config that predates versioning has
+  /// no field; it is migrated and stamped, and reports the current version.
+  /// </summary>
+  int DeclaredConfigVersion { get; }
+
+  /// <summary>
+  /// False when the config declares a schema older than this build still supports.
+  /// The caller should refuse to start rather than run against a shape this build
+  /// cannot fully understand.
+  /// </summary>
+  bool IsConfigVersionSupported { get; }
+
+  /// <summary>
   /// Loads or creates the configuration file.
   /// </summary>
   void LoadOrCreate();

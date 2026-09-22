@@ -1,9 +1,11 @@
+using System.Reflection;
 using Cookies.Contract;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared;
 
+using SwiftlyS2_Retakes.Configuration;
 using SwiftlyS2_Retakes.DependencyInjection;
 using SwiftlyS2_Retakes.Handlers;
 using SwiftlyS2_Retakes.Interfaces;
@@ -15,6 +17,15 @@ namespace SwiftlyS2_Retakes;
 
 public partial class SwiftlyS2_Retakes : BasePlugin
 {
+    /// <summary>
+    /// This plugin's id, read from the <c>[PluginMetadata]</c> attribute so it cannot
+    /// drift from what the framework registered. Needed to unload the plugin when the
+    /// configuration is too old to run. Falls back to the literal if the attribute is
+    /// somehow missing.
+    /// </summary>
+    private static string PluginId =>
+      typeof(SwiftlyS2_Retakes).GetCustomAttribute<PluginMetadata>()?.Id ?? "Retakes";
+
     private IServiceProvider? _serviceProvider;
 
     // Services resolved from DI container
@@ -112,6 +123,48 @@ public partial class SwiftlyS2_Retakes : BasePlugin
 
         // Initialize services that need explicit initialization
         _config.LoadOrCreate();
+
+        // Refuse to run against a config older than this build supports. Checked before
+        // anything is registered, so an early return leaves the plugin completely inert
+        // even if the self-unload below does not complete.
+        if (!_config.IsConfigVersionSupported)
+        {
+            Core.Logger.LogPluginError(
+              "Retakes: {Path} declares ConfigVersion {Declared}, but this build requires at least {Minimum} (it writes {Current}). " +
+              "Refusing to start rather than run against a configuration shape this build does not fully understand, and unloading. " +
+              "Back up the file and delete it to have a fresh one generated, then re-apply your settings.",
+              _config.ConfigPath,
+              _config.DeclaredConfigVersion,
+              RetakesConfig.MinimumSupportedVersion,
+              RetakesConfig.CurrentVersion);
+
+            // Unload on the next tick: calling back into the plugin manager while this
+            // Load() is still on the stack would tear the plugin down mid-initialisation.
+            // Both the scheduling and the unload are guarded -- this path must not throw,
+            // because letting Load() throw leaves the framework to react however it will,
+            // whereas returning leaves the plugin provably inert.
+            try
+            {
+                Core.Scheduler.NextTick(() =>
+                {
+                    try
+                    {
+                        Core.PluginManager.UnloadPlugin(PluginId, silent: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Core.Logger.LogPluginError(ex, "Retakes: failed to unload itself after a config version mismatch. The plugin is inert: nothing was registered.");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Core.Logger.LogPluginError(ex, "Retakes: could not schedule its own unload after a config version mismatch. The plugin is inert: nothing was registered.");
+            }
+
+            return;
+        }
+
         _weaponAliasConfig.LoadOrCreate();
         _prefs.Initialize();
 
