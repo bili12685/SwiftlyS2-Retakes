@@ -428,6 +428,8 @@ Grenades not listed here are uncapped.
 
 A map change clears the queue and recounts from zero. Everyone re-picks a side on the new map, so both the active set and the waiting order are rebuilt from whoever joins T/CT first. A player who lets the team-select timer run out drops to spectator and enters the queue when they pick a side.
 
+**Spectating is not a place in line.** A player who leaves their team — by choosing spectator, or because the AFK manager moved them — gives up their seat and is *not* added to the waiting queue. They re-enter it by picking T/CT again, at the back of the line.
+
 <details>
 <summary><b><code>QueuePriorityFlags</code> ships a default nobody holds — read this before relying on VIP priority</b></summary>
 

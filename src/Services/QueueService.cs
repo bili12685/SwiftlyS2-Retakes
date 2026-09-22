@@ -381,7 +381,26 @@ public sealed class QueueService : IQueueService
       .Where(p => (Team)p.Controller.TeamNum == Team.T || (Team)p.Controller.TeamNum == Team.CT)
       .ToList();
 
-    // Sync _activePlayers with reality: add any untracked team players, remove stale entries
+    var teamSteamIds = teamPlayers.Select(p => p.SteamID).ToHashSet();
+
+    // Anyone tracked as active who is no longer on a team has left the round --
+    // whether they chose spectator or a safety mechanism such as the AFK manager put
+    // them there. Drop them, because leaving them tracked held a phantom seat: it
+    // inflated ActiveCount, which understated the free slots and stopped waiting
+    // players from being promoted.
+    //
+    // They are deliberately NOT added to the waiting queue. Spectating is not a place
+    // in line -- a player only enters the queue by picking a side again. (The waiting
+    // queue legitimately contains spectators, so it is not pruned here; players who
+    // rejoin a team were already pulled out of it by MarkActive.)
+    var departed = _activePlayers.Keys.Where(id => !teamSteamIds.Contains(id)).ToList();
+    foreach (var steamId in departed)
+    {
+      _activePlayers.Remove(steamId);
+      _logger.LogDebug("QueueService: {SteamId} is no longer on a team, dropped from active", steamId);
+    }
+
+    // Sync _activePlayers with reality: adopt any team players the plugin has not seen
     foreach (var p in teamPlayers)
     {
       MarkActive(p.SteamID);
