@@ -14,10 +14,17 @@ public sealed class WeaponsConfig
   /// <see cref="HalfBuy"/> and <see cref="FullBuy"/>. Used as the secondary pool on
   /// every round type and as the primary pool on pistol rounds.
   /// </summary>
-  public RoundWeaponsConfig Pistols { get; set; } = new()
-  {
-    All = DefaultPistols(),
-  };
+  /// <remarks>
+  /// Deliberately empty rather than seeded with <see cref="DefaultPistols"/>. The
+  /// configuration binder <em>appends</em> to a collection property that already holds
+  /// entries instead of replacing them, so a non-empty default here would be merged into
+  /// whatever the file specifies. The owner could then add pistols but never remove one:
+  /// deleting an entry from <c>All</c> would leave the built-in copy in place, and the
+  /// duplicate would also make that weapon appear twice in the menu. The built-in defaults
+  /// are applied by <see cref="GetPistols"/> and <see cref="GetAllPistols"/> instead, only
+  /// when the configured buckets are empty.
+  /// </remarks>
+  public RoundWeaponsConfig Pistols { get; set; } = new();
 
   /// <summary>
   /// Pistols for one team: the team-specific list when it is non-empty, otherwise the

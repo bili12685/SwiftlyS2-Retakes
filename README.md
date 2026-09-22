@@ -196,6 +196,11 @@ having no effect.
 
 Duplicates are matched case-insensitively.
 
+If **every** bucket is empty the built-in pistol list is used, so clearing all three is a
+safe way to get the defaults back rather than leaving players without a sidearm. Note that
+`Weapons.Pistols` ships empty for that reason — an empty list means "use the built-in
+defaults", not "no pistols".
+
 > **Upgrading from a version where `Weapons.Pistols` was a flat array:** the array is
 > migrated automatically to `{"All": [...]}` on load — but only once the config is
 > admitted, which requires it to declare `ConfigVersion` (see
