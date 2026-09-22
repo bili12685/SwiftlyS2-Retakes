@@ -314,53 +314,38 @@ public sealed class QueueService : IQueueService
 
     if (cfg.AutoJoinSpectators)
     {
-      // Captured now: by the time the deferred work runs the player object may no longer
-      // be valid, and the log line needs something to identify them by.
-      MoveToSpectatorWithTeamMenu(player, player.SteamID.ToString());
+      NoteAutoJoinSpectatorsRequested(player.SteamID.ToString());
     }
   }
 
   /// <summary>
-  /// Parks a freshly connected player in spectator so they choose a side themselves
-  /// rather than being placed on one.
+  /// Nothing is done to the player here on purpose.
   /// </summary>
   /// <remarks>
-  /// The move is deferred by a tick instead of running inline from the connect event.
-  /// The same <c>ChangeTeam</c> call is used all over this service without trouble, and
-  /// the only thing that makes this call site different is when it runs: at connect the
-  /// engine is still setting the client up, and moving them mid-way through that left
-  /// players unable to pick a side at all -- the menu appeared and choosing it did
-  /// nothing. Deferring lets the engine finish first.
+  /// This option used to move the connecting player to spectator and open the team menu.
+  /// Both were removed after they were shown to break team selection outright.
   ///
-  /// The team menu is opened explicitly afterwards: parked in spectator the engine does
-  /// not offer it on its own, so without that the player would have no route to choose.
-  /// It is the engine's client command rather than a framework API, which is why it
-  /// appears nowhere in the SwiftlyS2 assemblies.
+  /// Forcing <c>ChangeTeam(Team.Spectator)</c> on a freshly connected client is refused by
+  /// the engine, which logs the attempt and reports "willSwitch 0" -- but it leaves the
+  /// client in a half-applied state (Unassigned rather than Spectator). From there the
+  /// player's own team selection produces no events at all: enabling the option meant the
+  /// plugin received no jointeam command, no player-team event, nothing to act on. Not
+  /// deferred, not without the ForceTeamTime write, and not with an explicit teammenu
+  /// command either -- three attempts, all still broken.
+  ///
+  /// Nothing is lost by doing none of it. The engine already leaves a connecting player
+  /// unassigned and offers the team menu, which is precisely what this option was meant to
+  /// achieve, and with the option off team selection works end to end. The plugin simply
+  /// did not need to intervene in the connect flow.
+  ///
+  /// Kept as a recognised option so existing configs keep loading; it now records that it
+  /// was requested and gets out of the way.
   /// </remarks>
-  private void MoveToSpectatorWithTeamMenu(IPlayer player, string steamIdForLog)
+  private void NoteAutoJoinSpectatorsRequested(string steamIdForLog)
   {
-    _core.Scheduler.NextTick(() =>
-    {
-      try
-      {
-        if (!player.IsValid) return;
-
-        var controller = player.Controller;
-        if (controller is null) return;
-
-        if ((Team)controller.TeamNum != Team.Spectator)
-        {
-          _logger.LogPluginDebug("QueueService: [{Name}] Auto-joining spectator after connect", controller.PlayerName);
-          player.ChangeTeam(Team.Spectator);
-        }
-
-        player.ExecuteCommand("teammenu");
-      }
-      catch (Exception ex)
-      {
-        _logger.LogPluginWarning(ex, "QueueService: failed to move {SteamId} to spectator / open the team menu on connect", steamIdForLog);
-      }
-    });
+    _logger.LogPluginDebug(
+      "QueueService: AutoJoinSpectators is enabled for {SteamId}; leaving the connect flow to the engine, which already offers the team menu and keeps the player unassigned until they choose",
+      steamIdForLog);
   }
 
   private void AddConnectedPlayerToGame(IPlayer player, Configuration.QueueConfig cfg)
