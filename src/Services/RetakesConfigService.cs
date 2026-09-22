@@ -167,6 +167,7 @@ public sealed class RetakesConfigService : IRetakesConfigService
       EnsureSoloBotConfigPresent();
       EnsureAfkManagerConfigPresent();
       EnsureWeaponDefaultsConfigPresent();
+      WarnAboutDuplicateWeaponLists();
       ApplyLoggingToggles(Config.Server);
     }
     catch (Exception ex)
@@ -174,6 +175,36 @@ public sealed class RetakesConfigService : IRetakesConfigService
       _logger.LogPluginError(ex, "Retakes: failed to load config.json from {Path}", _path);
       Config = new RetakesConfig();
     }
+  }
+
+  /// <summary>
+  /// Reports weapons listed in both a shared <c>All</c> list and a team list. Those team
+  /// entries are discarded during resolution -- <c>All</c> wins -- so without this a server
+  /// owner sees half of what they configured silently do nothing, which is exactly how the
+  /// <c>All</c> buckets behaved before they started being merged.
+  /// </summary>
+  private void WarnAboutDuplicateWeaponLists()
+  {
+    var weapons = Config.Weapons;
+    WarnAboutDuplicates("Weapons.Pistols", weapons.Pistols);
+    WarnAboutDuplicates("Weapons.HalfBuy", weapons.HalfBuy);
+    WarnAboutDuplicates("Weapons.FullBuy", weapons.FullBuy);
+  }
+
+  private void WarnAboutDuplicates(string path, RoundWeaponsConfig list)
+  {
+    WarnAboutDuplicates(path, "T", list.DuplicatesAgainstAll(list.T));
+    WarnAboutDuplicates(path, "Ct", list.DuplicatesAgainstAll(list.Ct));
+  }
+
+  private void WarnAboutDuplicates(string path, string team, List<string> duplicates)
+  {
+    if (duplicates.Count == 0) return;
+
+    _logger.LogPluginWarning(
+      "Retakes: {Path}.{Team} repeats {Count} weapon(s) that are already in All: {Weapons}. " +
+      "The All entry is the one used, so the {Team} entry has no effect -- remove one of them.",
+      path, team, duplicates.Count, string.Join(", ", duplicates), team);
   }
 
   private void EnsureTeamBalanceConfigPresent()

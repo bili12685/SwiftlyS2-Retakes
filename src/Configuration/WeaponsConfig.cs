@@ -115,9 +115,10 @@ public sealed class RoundWeaponsConfig
   /// team's own.
   /// </summary>
   /// <remarks>
-  /// Duplicates are dropped case-insensitively. A weapon listed in both buckets would
-  /// otherwise appear twice in the menu and, worse, carry double weight whenever
-  /// something is picked at random from the list.
+  /// Duplicates are dropped case-insensitively, and the <see cref="All"/> entry is the one
+  /// kept -- it is listed first, so it wins both the value and its position. A weapon in
+  /// both buckets would otherwise appear twice in the menu and, worse, carry double weight
+  /// whenever something is picked at random from the list.
   /// </remarks>
   public List<string> ForTeam(bool isCt) => Merge(All, isCt ? Ct : T);
 
@@ -126,6 +127,25 @@ public sealed class RoundWeaponsConfig
   /// menu's server-wide allowed set).
   /// </summary>
   public List<string> ForAllTeams() => Merge(Merge(All, T), Ct);
+
+  /// <summary>
+  /// Entries in a team list that also appear in <see cref="All"/>. These are exactly what
+  /// the resolution above discards (the <see cref="All"/> entry wins), so a caller can
+  /// warn that half of what someone configured is having no effect.
+  /// </summary>
+  public List<string> DuplicatesAgainstAll(List<string> teamList)
+  {
+    var shared = new HashSet<string>(All, StringComparer.OrdinalIgnoreCase);
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var duplicates = new List<string>();
+
+    foreach (var weapon in teamList)
+    {
+      if (shared.Contains(weapon) && seen.Add(weapon)) duplicates.Add(weapon);
+    }
+
+    return duplicates;
+  }
 
   private static List<string> Merge(List<string> first, List<string> second)
   {

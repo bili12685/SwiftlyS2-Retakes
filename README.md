@@ -189,8 +189,12 @@ T  gets: weapon_deagle, weapon_p250, weapon_glock, weapon_tec9
 CT gets: weapon_deagle, weapon_p250, weapon_usp_silencer, weapon_fiveseven
 ```
 
-Duplicates are dropped (case-insensitively), so listing a weapon in both `All` and a team
-list does not make it appear twice or count double when one is picked at random.
+Listing a weapon in both `All` and a team list is redundant — the **`All` entry wins** and
+the team entry is discarded, so the weapon appears once and keeps `All`'s position. This is
+reported as a warning at startup, naming the weapon, because it means part of the config is
+having no effect.
+
+Duplicates are matched case-insensitively.
 
 > **Upgrading from a version where `Weapons.Pistols` was a flat array:** the array is
 > migrated automatically to `{"All": [...]}` on load — but only once the config is
