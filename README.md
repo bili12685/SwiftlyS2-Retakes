@@ -673,11 +673,16 @@ section. This build writes version `2`.
 | Field present but not a number | Repaired to the current version — a non-numeric value would fail the bind and reset the whole config. |
 | Field **below the minimum this build supports** | The plugin **refuses to start and unloads itself**, rather than running against a shape it does not fully understand. |
 
-The minimum lives in `RetakesConfig.MinimumSupportedVersion` and equals the current
-version, so the effective rule is **the config must be current**. A config with no
-version field is upgraded and stamped *before* the check runs, so it complies rather
-than being refused — treating it as version 0 would brick every existing server on
-upgrade. Only a config that explicitly declares an older version is turned away.
+The check runs on the version the file ends up at, **not** on what it originally
+declared. A config with no version field is version 1 — that is what the pre-versioning
+shape is — and it is upgraded and stamped *before* the check, so it arrives as the
+current version and is accepted. Rejecting it for being version 1 would brick every
+existing server on upgrade.
+
+`MinimumSupportedVersion` equals `CurrentVersion`, so the effective rule is **the config
+must end up current**. Only a config that *explicitly declares* an older version is
+turned away, because the sanitizers never rewrite a valid declaration — so it stays old
+and fails the check rather than being quietly repaired into passing.
 
 When the refusal fires, the log names the file, the declared version, and the minimum.
 Back the file up, delete it to have a fresh one generated, then re-apply your settings.

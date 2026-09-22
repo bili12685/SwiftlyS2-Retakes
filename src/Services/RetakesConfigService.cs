@@ -35,13 +35,28 @@ public sealed class RetakesConfigService : IRetakesConfigService
   public RetakesConfig Config { get; private set; } = new();
 
   /// <summary>
-  /// Schema version the loaded config declared. Defaults to the current version: a
-  /// config with no version field predates versioning and is migrated and stamped by
-  /// the sanitizers, so it must not be read as version 0 and rejected on upgrade.
+  /// Schema version the config file itself declared, read before anything is migrated
+  /// or stamped. A config with no version field is version <see cref="PreVersioningConfigVersion"/>
+  /// -- that is genuinely what it is, so it is reported honestly rather than passed off
+  /// as current.
   /// </summary>
-  public int DeclaredConfigVersion { get; private set; } = RetakesConfig.CurrentVersion;
+  public int DeclaredConfigVersion { get; private set; } = PreVersioningConfigVersion;
 
-  public bool IsConfigVersionSupported => DeclaredConfigVersion >= RetakesConfig.MinimumSupportedVersion;
+  /// <summary>
+  /// Whether the config is usable <em>after</em> migration. This deliberately looks at
+  /// the version the file ends up at, not the one it declared: a pre-versioning config
+  /// is upgraded and stamped before binding, so it arrives here as current and is
+  /// accepted. An explicitly declared old version is not rewritten by the sanitizers,
+  /// so it stays old, fails this check, and the plugin refuses to start.
+  /// </summary>
+  public bool IsConfigVersionSupported =>
+    Config.ConfigVersion >= RetakesConfig.MinimumSupportedVersion;
+
+  /// <summary>
+  /// Version of a config written before versioning existed: the shape that predates the
+  /// ConfigVersion field. Such a config is migrated forward, not rejected.
+  /// </summary>
+  public const int PreVersioningConfigVersion = 1;
 
   public RetakesConfigService(ISwiftlyCore core, ILogger logger)
   {

@@ -130,11 +130,12 @@ public partial class SwiftlyS2_Retakes : BasePlugin
         if (!_config.IsConfigVersionSupported)
         {
             Core.Logger.LogPluginError(
-              "Retakes: {Path} declares ConfigVersion {Declared}, but this build requires at least {Minimum} (it writes {Current}). " +
+              "Retakes: {Path} declares ConfigVersion {Declared} and is still at {Actual} after migration, but this build requires at least {Minimum} (it writes {Current}). " +
               "Refusing to start rather than run against a configuration shape this build does not fully understand, and unloading. " +
               "Back up the file and delete it to have a fresh one generated, then re-apply your settings.",
               _config.ConfigPath,
               _config.DeclaredConfigVersion,
+              _config.Config.ConfigVersion,
               RetakesConfig.MinimumSupportedVersion,
               RetakesConfig.CurrentVersion);
 
