@@ -21,13 +21,6 @@ public interface IQueueService
 
   HookResult OnPlayerJoinedTeam(IPlayer player, Team fromTeam, Team toTeam);
 
-  /// <summary>
-  /// Handles a player who has just finished connecting: optionally parks them in
-  /// spectator, or drops them straight into the game/queue. Configured by
-  /// <c>Queue.AutoJoinSpectators</c> / <c>Queue.AutoJoinGame</c>; both off by default.
-  /// </summary>
-  void OnPlayerConnected(IPlayer player);
-
   void Update();
   void RemovePlayerFromQueues(ulong steamId);
   void CheckRoundDone();

@@ -454,30 +454,6 @@ Grenades not listed here are uncapped.
 | `Queue.QueueImmunityFlags` | `""` | Permission(s) that exempt players from being bumped. Empty reuses `QueuePriorityFlags` |
 | `Queue.PromotionOrder` | `"fifo"` | How the roster is decided: `"fifo"`, `"random"`, or `"allrandom"` — see below |
 | `Queue.ShouldRemoveSpectators` | `true` | Move spectators to queue when a slot opens |
-| `Queue.AutoJoinSpectators` | `false` | **No longer intervenes.** Accepted so existing configs load, but the plugin leaves the connect flow alone — see below |
-| `Queue.AutoJoinGame` | `false` | Drop players straight into the game on connect (or into the queue when full), without showing the team-select menu |
-
-> `Queue.AutoJoinGame` takes priority over `Queue.AutoJoinSpectators`.
-
-<details>
-<summary><b>Why <code>AutoJoinSpectators</code> no longer does anything</b></summary>
-
-It used to move a connecting player to spectator and open the team menu. Both were removed
-because they broke team selection outright: forcing the team change on a freshly connected
-client is refused by the engine, and the client is left half-applied in an `Unassigned`
-state from which the player's own selection produces **no events at all** — the plugin
-received nothing to act on. Deferring the move, dropping an earlier `ForceTeamTime` write,
-and sending the team menu explicitly were all tried; none of them helped.
-
-Nothing is lost. The engine already leaves a connecting player unassigned and offers the
-team menu, which is exactly what the option was meant to achieve, so the plugin never
-needed to intervene in the connect flow. The setting is still recognised so existing
-configs keep loading.
-
-</details>
-
-> With both options off (the default) connecting players keep the vanilla behaviour — the
-> engine assigns them and the queue system adjusts on their first team change.
 
 A map change clears the queue and recounts from zero. Everyone re-picks a side on the new map, so both the active set and the waiting order are rebuilt from whoever joins T/CT first. A player who lets the team-select timer run out drops to spectator and enters the queue when they pick a side.
 

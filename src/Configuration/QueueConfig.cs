@@ -29,17 +29,4 @@ public sealed class QueueConfig
   /// Anything else falls back to <c>"fifo"</c>.
   /// </remarks>
   public string PromotionOrder { get; set; } = "fifo";
-
-  /// <summary>
-  /// Park players in spectator when they connect so they pick their own side,
-  /// keeping the team-select menu from auto-closing. Off by default.
-  /// </summary>
-  public bool AutoJoinSpectators { get; set; } = false;
-
-  /// <summary>
-  /// Drop players straight into the game on connect — or into the queue when the
-  /// server is full — without showing the team-select menu. Takes priority over
-  /// <see cref="AutoJoinSpectators"/>. Off by default.
-  /// </summary>
-  public bool AutoJoinGame { get; set; } = false;
 }
