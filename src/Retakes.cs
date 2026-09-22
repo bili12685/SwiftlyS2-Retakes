@@ -13,7 +13,7 @@ using SwiftlyS2_Retakes.Logging;
 
 namespace SwiftlyS2_Retakes;
 
-[PluginMetadata(Id = "Retakes", Version = "1.5.3", Name = "Retakes", Author = "aga", Description = "No description.")]
+[PluginMetadata(Id = "Retakes", Version = "1.5.4", Name = "Retakes", Author = "aga", Description = "No description.")]
 
 public partial class SwiftlyS2_Retakes : BasePlugin
 {
