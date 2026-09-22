@@ -333,12 +333,19 @@ public sealed class QueueService : IQueueService
       player.ChangeTeam(Team.Spectator);
     }
 
-    // Deliberately nothing else. An earlier revision also pushed ForceTeamTime an hour
-    // into the future to "hold the team-select menu open", copied from the upstream
-    // plugin without verifying what the field means. The engine already presents the
-    // team menu to a spectating player, and on a real server that write coincided with
-    // players being unable to pick a side, so it is gone. The queue does not need it:
-    // waiting players are spectators by design and rejoin through the normal flow.
+    // Moving the player to spectator is only half of it: parked there, the engine does
+    // not offer the team menu on its own, so without this the player has no way to pick a
+    // side at all. The client command is what opens the menu, and the upstream plugin
+    // sends the same one. It is the engine's command, not the framework's, which is why
+    // it does not appear anywhere in the SwiftlyS2 API.
+    try
+    {
+      player.ExecuteCommand("teammenu");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogPluginWarning(ex, "QueueService: failed to open the team menu for {Name}; they can still pick a side with the team keys", controller.PlayerName);
+    }
   }
 
   private void AddConnectedPlayerToGame(IPlayer player, Configuration.QueueConfig cfg)
