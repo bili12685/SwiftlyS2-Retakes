@@ -26,10 +26,8 @@ public sealed class WeaponsConfig
   /// </summary>
   public List<string> GetPistols(bool isCt)
   {
-    var teamList = isCt ? Pistols.Ct : Pistols.T;
-    if (teamList.Count > 0) return teamList;
-    if (Pistols.All.Count > 0) return Pistols.All;
-    return DefaultPistols();
+    var combined = Pistols.ForTeam(isCt);
+    return combined.Count > 0 ? combined : DefaultPistols();
   }
 
   /// <summary>
@@ -38,10 +36,8 @@ public sealed class WeaponsConfig
   /// </summary>
   public List<string> GetAllPistols()
   {
-    var all = new List<string>(Pistols.All);
-    all.AddRange(Pistols.T);
-    all.AddRange(Pistols.Ct);
-    return all.Count > 0 ? all : DefaultPistols();
+    var combined = Pistols.ForAllTeams();
+    return combined.Count > 0 ? combined : DefaultPistols();
   }
 
   private static List<string> DefaultPistols() => new()
@@ -104,7 +100,48 @@ public sealed class DefaultWeaponSelectionConfig
 /// </summary>
 public sealed class RoundWeaponsConfig
 {
+  /// <summary>
+  /// Weapons available to both teams. These are added to each team's own list rather
+  /// than only standing in for it, so listing a weapon here makes it available to
+  /// everyone without having to repeat it under <see cref="T"/> and <see cref="Ct"/>.
+  /// </summary>
   public List<string> All { get; set; } = new();
+
   public List<string> T { get; set; } = new();
   public List<string> Ct { get; set; } = new();
+
+  /// <summary>
+  /// Effective list for one team: every entry from <see cref="All"/> followed by that
+  /// team's own.
+  /// </summary>
+  /// <remarks>
+  /// Duplicates are dropped case-insensitively. A weapon listed in both buckets would
+  /// otherwise appear twice in the menu and, worse, carry double weight whenever
+  /// something is picked at random from the list.
+  /// </remarks>
+  public List<string> ForTeam(bool isCt) => Merge(All, isCt ? Ct : T);
+
+  /// <summary>
+  /// Effective list covering both teams, for callers that have no team context (the buy
+  /// menu's server-wide allowed set).
+  /// </summary>
+  public List<string> ForAllTeams() => Merge(Merge(All, T), Ct);
+
+  private static List<string> Merge(List<string> first, List<string> second)
+  {
+    var merged = new List<string>(first.Count + second.Count);
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var weapon in first)
+    {
+      if (seen.Add(weapon)) merged.Add(weapon);
+    }
+
+    foreach (var weapon in second)
+    {
+      if (seen.Add(weapon)) merged.Add(weapon);
+    }
+
+    return merged;
+  }
 }

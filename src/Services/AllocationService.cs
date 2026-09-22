@@ -472,9 +472,11 @@ public sealed class AllocationService : IAllocationService
 
     if (roundCfg is null) return _config.Config.Weapons.GetPistols(team == Team.CT);
 
-    var teamList = team == Team.CT ? roundCfg.Ct : roundCfg.T;
-    if (teamList.Count > 0) return teamList;
-    return roundCfg.All.Count > 0 ? roundCfg.All : _config.Config.Weapons.GetPistols(team == Team.CT);
+    // All is added to the team's own list rather than only standing in for it, matching
+    // how pistols resolve. An empty result falls back to the pistol list, which is what
+    // GetPistols already does when every bucket is empty.
+    var combined = roundCfg.ForTeam(team == Team.CT);
+    return combined.Count > 0 ? combined : _config.Config.Weapons.GetPistols(team == Team.CT);
   }
 
   public bool IsAuthorisedForAwp(ulong steamId)

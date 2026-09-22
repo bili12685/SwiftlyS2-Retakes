@@ -170,23 +170,34 @@ Configured under `Weapons`:
 | `Weapons.HalfBuy.T` / `.Ct` / `.All` | Allowed primaries for half-buy rounds per team |
 | `Weapons.FullBuy.T` / `.Ct` / `.All` | Allowed primaries for full-buy rounds per team |
 
-All four lists use the same `All` / `T` / `Ct` shape, resolved the same way: the
-team-specific list wins when it is non-empty, otherwise `All` applies to both teams.
+All three use the same `All` / `T` / `Ct` shape and resolve the same way: **`All` is
+added to the team's own list**, so an entry there is available to both teams without
+being repeated under `T` and `Ct`.
 
 ```jsonc
 "Weapons": {
   "Pistols": {
-    "All": [],                                            // empty -> T/Ct decide
-    "T":  [ "weapon_glock", "weapon_tec9" ],
-    "Ct": [ "weapon_usp_silencer", "weapon_p250" ]
+    "All": [ "weapon_deagle", "weapon_p250" ],             // both teams
+    "T":   [ "weapon_glock", "weapon_tec9" ],              // T only, on top of All
+    "Ct":  [ "weapon_usp_silencer", "weapon_fiveseven" ]   // CT only, on top of All
   }
 }
 ```
 
+```
+T  gets: weapon_deagle, weapon_p250, weapon_glock, weapon_tec9
+CT gets: weapon_deagle, weapon_p250, weapon_usp_silencer, weapon_fiveseven
+```
+
+Duplicates are dropped (case-insensitively), so listing a weapon in both `All` and a team
+list does not make it appear twice or count double when one is picked at random.
+
 > **Upgrading from a version where `Weapons.Pistols` was a flat array:** the array is
-> migrated automatically to `{"All": [...]}` on load, so an existing config keeps
-> working and no action is needed. One caveat — the migration rewrites `config.json`,
-> so comments in that file are not preserved.
+> migrated automatically to `{"All": [...]}` on load — but only once the config is
+> admitted, which requires it to declare `ConfigVersion` (see
+> [Config Version](#config-version)). Add the field, or let the plugin regenerate the
+> file. One caveat — the migration rewrites `config.json`, so comments in that file are
+> not preserved.
 
 ### Default Loadouts
 
