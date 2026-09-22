@@ -314,38 +314,53 @@ public sealed class QueueService : IQueueService
 
     if (cfg.AutoJoinSpectators)
     {
-      MoveToSpectatorWithTeamMenu(player);
+      // Captured now: by the time the deferred work runs the player object may no longer
+      // be valid, and the log line needs something to identify them by.
+      MoveToSpectatorWithTeamMenu(player, player.SteamID.ToString());
     }
   }
 
-  private void MoveToSpectatorWithTeamMenu(IPlayer player)
+  /// <summary>
+  /// Parks a freshly connected player in spectator so they choose a side themselves
+  /// rather than being placed on one.
+  /// </summary>
+  /// <remarks>
+  /// The move is deferred by a tick instead of running inline from the connect event.
+  /// The same <c>ChangeTeam</c> call is used all over this service without trouble, and
+  /// the only thing that makes this call site different is when it runs: at connect the
+  /// engine is still setting the client up, and moving them mid-way through that left
+  /// players unable to pick a side at all -- the menu appeared and choosing it did
+  /// nothing. Deferring lets the engine finish first.
+  ///
+  /// The team menu is opened explicitly afterwards: parked in spectator the engine does
+  /// not offer it on its own, so without that the player would have no route to choose.
+  /// It is the engine's client command rather than a framework API, which is why it
+  /// appears nowhere in the SwiftlyS2 assemblies.
+  /// </remarks>
+  private void MoveToSpectatorWithTeamMenu(IPlayer player, string steamIdForLog)
   {
-    var controller = player.Controller;
-    if (controller is null)
+    _core.Scheduler.NextTick(() =>
     {
-      return;
-    }
+      try
+      {
+        if (!player.IsValid) return;
 
-    _logger.LogPluginDebug("QueueService: [{Name}] Auto-joining spectator on connect", controller.PlayerName);
+        var controller = player.Controller;
+        if (controller is null) return;
 
-    if ((Team)controller.TeamNum != Team.Spectator)
-    {
-      player.ChangeTeam(Team.Spectator);
-    }
+        if ((Team)controller.TeamNum != Team.Spectator)
+        {
+          _logger.LogPluginDebug("QueueService: [{Name}] Auto-joining spectator after connect", controller.PlayerName);
+          player.ChangeTeam(Team.Spectator);
+        }
 
-    // Moving the player to spectator is only half of it: parked there, the engine does
-    // not offer the team menu on its own, so without this the player has no way to pick a
-    // side at all. The client command is what opens the menu, and the upstream plugin
-    // sends the same one. It is the engine's command, not the framework's, which is why
-    // it does not appear anywhere in the SwiftlyS2 API.
-    try
-    {
-      player.ExecuteCommand("teammenu");
-    }
-    catch (Exception ex)
-    {
-      _logger.LogPluginWarning(ex, "QueueService: failed to open the team menu for {Name}; they can still pick a side with the team keys", controller.PlayerName);
-    }
+        player.ExecuteCommand("teammenu");
+      }
+      catch (Exception ex)
+      {
+        _logger.LogPluginWarning(ex, "QueueService: failed to move {SteamId} to spectator / open the team menu on connect", steamIdForLog);
+      }
+    });
   }
 
   private void AddConnectedPlayerToGame(IPlayer player, Configuration.QueueConfig cfg)
